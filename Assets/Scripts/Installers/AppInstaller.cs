@@ -2,6 +2,7 @@ using Zenject;
 using ARDrawing.Core.Interfaces;
 using ARDrawing.Core.Services;
 using ARDrawing.Core.Models;
+using ARDrawing.Testing;
 using UnityEngine;
 
 namespace ARDrawing.Installers
@@ -12,6 +13,9 @@ namespace ARDrawing.Installers
     /// </summary>
     public class AppInstaller : MonoInstaller
     {
+        [Header("Debug Settings")]
+        [SerializeField] private bool useHandTrackingSimulator = false;
+        
         [Header("Service Settings")]
         [SerializeField] private DrawingSettings defaultDrawingSettings;
         
@@ -40,13 +44,26 @@ namespace ARDrawing.Installers
         /// </summary>
         private void InstallCoreServices()
         {
-            // Hand Tracking сервис с OpenXR интеграцией
-            // Hand Tracking service with OpenXR integration
-            Container
-                .Bind<IHandTrackingService>()
-                .To<OpenXRHandTrackingService>()
-                .AsSingle()
-                .NonLazy();
+            // Hand Tracking сервис - выбор между реальным и симулятором
+            // Hand Tracking service - choice between real and simulator
+            if (useHandTrackingSimulator)
+            {
+                Container
+                    .Bind<IHandTrackingService>()
+                    .To<HandTrackingSimulator>()
+                    .FromNewComponentOnNewGameObject()
+                    .AsSingle()
+                    .NonLazy();
+            }
+            else
+            {
+                Container
+                    .Bind<IHandTrackingService>()
+                    .To<OpenXRHandTrackingService>()
+                    .FromNewComponentOnNewGameObject()
+                    .AsSingle()
+                    .NonLazy();
+            }
             
             // Сервис рисования с пулингом объектов
             // Drawing service with object pooling
