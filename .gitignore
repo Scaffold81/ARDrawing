@@ -1,0 +1,10 @@
+/Assets/Oculus
+/Assets/Packages
+/Assets/Plugins
+/Assets/TutorialInfo
+/Assets/XR
+*.csproj
+/Library
+/Logs
+/Packages
+DEVELOPMENT_PLAN.md
