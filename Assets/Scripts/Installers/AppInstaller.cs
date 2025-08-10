@@ -3,6 +3,7 @@ using ARDrawing.Core.Interfaces;
 using ARDrawing.Core.Services;
 using ARDrawing.Core.Models;
 using ARDrawing.Core.Config;
+using ARDrawing.Presentation.Presenters;
 using ARDrawing.Testing;
 using UnityEngine;
 
@@ -45,10 +46,16 @@ namespace ARDrawing.Installers
         /// </summary>
         private void InstallCoreServices()
         {
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing core services...");
+                
             // Hand Tracking сервис - выбор между реальным и симулятором
             // Hand Tracking service - choice between real and simulator
             if (useHandTrackingSimulator)
             {
+                if (enableDebugLogging)
+                    Debug.Log("[AppInstaller] Installing HandTrackingSimulator...");
+                    
                 Container
                     .Bind<IHandTrackingService>()
                     .To<HandTrackingSimulator>()
@@ -58,6 +65,9 @@ namespace ARDrawing.Installers
             }
             else
             {
+                if (enableDebugLogging)
+                    Debug.Log("[AppInstaller] Installing OpenXRHandTrackingService...");
+                    
                 Container
                     .Bind<IHandTrackingService>()
                     .To<OpenXRHandTrackingService>()
@@ -66,17 +76,34 @@ namespace ARDrawing.Installers
                     .NonLazy();
             }
             
-            // Сервис рисования с пулингом объектов
-            // Drawing service with object pooling
+            // Сервис рисования с пулингом объектов - только один экземпляр!
+            // Drawing service with object pooling - only one instance!
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing DrawingService...");
+                
             Container
                 .Bind<IDrawingService>()
                 .To<DrawingService>()
                 .FromNewComponentOnNewGameObject()
                 .AsSingle()
                 .NonLazy();
+                
+            // Презентер рисования с реактивной логикой
+            // Drawing presenter with reactive logic
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing DrawingPresenter...");
+                
+            Container
+                .Bind<DrawingPresenter>()
+                .FromNewComponentOnNewGameObject()
+                .AsSingle()
+                .NonLazy();
             
             // Сервис взаимодействия с UI
             // UI interaction service
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing UIInteractionService...");
+                
             Container
                 .Bind<IUIInteractionService>()
                 .To<UIInteractionService>()
@@ -85,6 +112,9 @@ namespace ARDrawing.Installers
             
             // Сервис сохранения/загрузки через JSON
             // Save/Load service through JSON
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing JsonSaveLoadService...");
+                
             Container
                 .Bind<ISaveLoadService>()
                 .To<JsonSaveLoadService>()
