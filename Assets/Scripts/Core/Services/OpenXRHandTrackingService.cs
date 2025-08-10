@@ -7,15 +7,17 @@ using System;
 namespace ARDrawing.Core.Services
 {
     /// <summary>
-    /// Реализация сервиса отслеживания рук через Meta XR API.
-    /// Meta XR Hand Tracking service implementation.
+    /// Реализация сервиса отслеживания рук через Meta XR API с улучшенным определением касания.
+    /// Meta XR Hand Tracking service implementation with improved touch detection.
     /// </summary>
     public class OpenXRHandTrackingService : MonoBehaviour, IHandTrackingService, IDisposable
     {
         [Header("Hand Tracking Settings")]
         [SerializeField] private float confidenceThreshold = 0.7f;
-        [SerializeField] private float touchThreshold = 0.03f;
         [SerializeField] private bool debugOutput = true;
+        
+        [Header("Touch Detection Settings")]
+        [SerializeField] private TouchDetectionSettings touchSettings = TouchDetectionSettings.Default;
         
         [Header("OVR Hand References")]
         [SerializeField] private OVRHand rightOVRHand;
@@ -27,6 +29,12 @@ namespace ARDrawing.Core.Services
         private readonly Subject<HandInteractionData> _uiInteraction = new();
         private readonly Subject<float> _handTrackingConfidence = new();
         private readonly Subject<bool> _isRightHandTracked = new();
+        private readonly Subject<TouchEventData> _touchEvents = new();
+        
+        // Touch State Manager / Менеджер состояний касания
+        private TouchStateManager _touchStateManager;
+        private IDisposable _touchEventsSubscription;
+        private IDisposable _touchStateSubscription;
         
         // Состояние отслеживания / Tracking state
         private bool _isInitialized = false;
@@ -34,6 +42,7 @@ namespace ARDrawing.Core.Services
         
         // Кэш для оптимизации / Cache for optimization
         private Vector3 _lastIndexPosition = Vector3.zero;
+        private Vector3 _lastThumbPosition = Vector3.zero;
         private bool _lastTouchState = false;
         private float _lastConfidence = 0f;
         
@@ -44,12 +53,19 @@ namespace ARDrawing.Core.Services
         public Observable<bool> IsRightHandTracked => _isRightHandTracked.AsObservable();
         
         /// <summary>
+        /// Дополнительный Observable для детальных событий касания.
+        /// Additional Observable for detailed touch events.
+        /// </summary>
+        public Observable<TouchEventData> TouchEvents => _touchEvents.AsObservable();
+        
+        /// <summary>
         /// Инициализация сервиса отслеживания рук.
         /// Initialize hand tracking service.
         /// </summary>
         private void Start()
         {
             InitializeHandTracking();
+            InitializeTouchStateManager();
         }
         
         /// <summary>
@@ -113,12 +129,89 @@ namespace ARDrawing.Core.Services
         }
         
         /// <summary>
+        /// Инициализация менеджера состояний касания.
+        /// Initialize touch state manager.
+        /// </summary>
+        private void InitializeTouchStateManager()
+        {
+            _touchStateManager = new TouchStateManager(touchSettings);
+            
+            // Subscribe to touch events
+            _touchEventsSubscription = _touchStateManager.TouchEvents
+                .Subscribe(OnTouchEvent);
+                
+            _touchStateSubscription = _touchStateManager.TouchStateChanged
+                .Subscribe(OnTouchStateChanged);
+            
+            if (debugOutput)
+            {
+                Debug.Log("OpenXRHandTrackingService: TouchStateManager initialized with improved detection");
+            }
+        }
+        
+        /// <summary>
+        /// Обработка события касания.
+        /// Handle touch event.
+        /// </summary>
+        /// <param name="touchEvent">Данные события / Event data</param>
+        private void OnTouchEvent(TouchEventData touchEvent)
+        {
+            // Обновляем Observable потоки
+            // Update Observable streams
+            _indexFingerPosition.OnNext(touchEvent.position);
+            
+            // Определяем состояние касания
+            // Determine touch state
+            bool isTouching = touchEvent.state == TouchState.Started || touchEvent.state == TouchState.Active;
+            
+            if (_lastTouchState != isTouching)
+            {
+                _lastTouchState = isTouching;
+                _isIndexFingerTouching.OnNext(isTouching);
+                
+                if (debugOutput)
+                {
+                    Debug.Log($"OpenXRHandTrackingService: Touch state changed to {touchEvent.state} / Состояние касания изменено на {touchEvent.state}");
+                }
+            }
+            
+            // Создаем данные взаимодействия с дополнительной информацией
+            // Create interaction data with additional information
+            var interactionData = new HandInteractionData(
+                touchEvent.position,
+                isTouching,
+                touchEvent.confidence,
+                true // правая рука / right hand
+            );
+            
+            _uiInteraction.OnNext(interactionData);
+            _lastInteractionData = interactionData;
+            
+            // Отправляем детальное событие касания
+            // Send detailed touch event
+            _touchEvents.OnNext(touchEvent);
+        }
+        
+        /// <summary>
+        /// Обработка изменения состояния касания.
+        /// Handle touch state change.
+        /// </summary>
+        /// <param name="newState">Новое состояние / New state</param>
+        private void OnTouchStateChanged(TouchState newState)
+        {
+            if (debugOutput)
+            {
+                Debug.Log($"OpenXRHandTrackingService: Touch state transition to {newState} / Переход состояния касания в {newState}");
+            }
+        }
+        
+        /// <summary>
         /// Обновление данных отслеживания рук каждый кадр.
         /// Update hand tracking data every frame.
         /// </summary>
         private void Update()
         {
-            if (!_isInitialized)
+            if (!_isInitialized || _touchStateManager == null)
                 return;
                 
             UpdateHandTracking();
@@ -158,25 +251,13 @@ namespace ARDrawing.Core.Services
                 // Hand not tracked or low confidence
                 _isRightHandTracked.OnNext(false);
                 _handTrackingConfidence.OnNext(confidence);
-            }
-        }
-        
-        /// <summary>
-        /// Конвертирует TrackingConfidence в float.
-        /// Convert TrackingConfidence to float.
-        /// </summary>
-        /// <param name="confidence">Уверенность отслеживания / Tracking confidence</param>
-        /// <returns>Значение от 0 до 1 / Value from 0 to 1</returns>
-        private float ConvertConfidenceToFloat(OVRHand.TrackingConfidence confidence)
-        {
-            switch (confidence)
-            {
-                case OVRHand.TrackingConfidence.Low:
-                    return 0.3f;
-                case OVRHand.TrackingConfidence.High:
-                    return 1.0f;
-                default:
-                    return 0.0f;
+                
+                // Сбрасываем состояние касания при потере отслеживания
+                // Reset touch state when tracking is lost
+                if (_touchStateManager != null)
+                {
+                    _touchStateManager.ResetState();
+                }
             }
         }
         
@@ -189,10 +270,11 @@ namespace ARDrawing.Core.Services
             try
             {
                 Vector3 indexPosition = Vector3.zero;
-                bool hasValidPosition = false;
+                Vector3 thumbPosition = Vector3.zero;
+                bool hasValidPositions = false;
                 
-                // Получаем позицию указательного пальца
-                // Get index finger position
+                // Получаем позицию указательного и большого пальца
+                // Get index and thumb finger positions
                 if (rightOVRHand != null)
                 {
                     // Используем OVRHand API
@@ -201,7 +283,18 @@ namespace ARDrawing.Core.Services
                     if (indexTransform != null)
                     {
                         indexPosition = indexTransform.position;
-                        hasValidPosition = true;
+                        
+                        // Пробуем получить позицию большого пальца через скелет
+                        // Try to get thumb position through skeleton
+                        if (rightHandSkeleton != null)
+                        {
+                            var thumbTipBone = GetBoneTransform(OVRSkeleton.BoneId.Hand_ThumbTip);
+                            if (thumbTipBone != null)
+                            {
+                                thumbPosition = thumbTipBone.position;
+                                hasValidPositions = true;
+                            }
+                        }
                     }
                 }
                 else if (rightHandSkeleton != null && rightHandSkeleton.Bones != null)
@@ -209,42 +302,34 @@ namespace ARDrawing.Core.Services
                     // Используем OVRSkeleton API
                     // Use OVRSkeleton API
                     var indexTipBone = GetBoneTransform(OVRSkeleton.BoneId.Hand_IndexTip);
-                    if (indexTipBone != null)
+                    var thumbTipBone = GetBoneTransform(OVRSkeleton.BoneId.Hand_ThumbTip);
+                    
+                    if (indexTipBone != null && thumbTipBone != null)
                     {
                         indexPosition = indexTipBone.position;
-                        hasValidPosition = true;
+                        thumbPosition = thumbTipBone.position;
+                        hasValidPositions = true;
                     }
                 }
                 
-                if (hasValidPosition)
+                if (hasValidPositions)
                 {
                     var confidence = GetCurrentConfidence();
                     
-                    // Обновляем позицию указательного пальца
-                    // Update index finger position
-                    UpdateIndexFingerPosition(indexPosition);
+                    // Обновляем TouchStateManager с новыми данными
+                    // Update TouchStateManager with new data
+                    var touchEvent = _touchStateManager.UpdateTouchState(indexPosition, thumbPosition, confidence);
                     
-                    // Определяем состояние касания (pinch gesture)
-                    // Determine touch state (pinch gesture)
-                    var isTouching = DetectPinchGesture();
-                    UpdateTouchState(isTouching);
-                    
-                    // Создаем данные взаимодействия
-                    // Create interaction data
-                    var interactionData = new HandInteractionData(
-                        indexPosition,
-                        isTouching,
-                        confidence,
-                        true // правая рука / right hand
-                    );
-                    
-                    // Отправляем обновления через Observable
-                    // Send updates through Observable
-                    _uiInteraction.OnNext(interactionData);
+                    // Обновляем базовые Observable потоки
+                    // Update basic Observable streams
                     _isRightHandTracked.OnNext(true);
                     _handTrackingConfidence.OnNext(confidence);
                     
-                    _lastInteractionData = interactionData;
+                    // Кэшируем позиции
+                    // Cache positions
+                    _lastIndexPosition = indexPosition;
+                    _lastThumbPosition = thumbPosition;
+                    _lastConfidence = confidence;
                 }
             }
             catch (Exception ex)
@@ -300,6 +385,25 @@ namespace ARDrawing.Core.Services
         }
         
         /// <summary>
+        /// Конвертирует TrackingConfidence в float.
+        /// Convert TrackingConfidence to float.
+        /// </summary>
+        /// <param name="confidence">Уверенность отслеживания / Tracking confidence</param>
+        /// <returns>Значение от 0 до 1 / Value from 0 to 1</returns>
+        private float ConvertConfidenceToFloat(OVRHand.TrackingConfidence confidence)
+        {
+            switch (confidence)
+            {
+                case OVRHand.TrackingConfidence.Low:
+                    return 0.3f;
+                case OVRHand.TrackingConfidence.High:
+                    return 1.0f;
+                default:
+                    return 0.0f;
+            }
+        }
+        
+        /// <summary>
         /// Получение текущей уверенности отслеживания.
         /// Get current tracking confidence.
         /// </summary>
@@ -317,97 +421,19 @@ namespace ARDrawing.Core.Services
         }
         
         /// <summary>
-        /// Определение жеста pinch через OVR API.
-        /// Detect pinch gesture through OVR API.
+        /// Обновление настроек определения касания во время выполнения.
+        /// Update touch detection settings at runtime.
         /// </summary>
-        /// <returns>True если жест активен / True if gesture is active</returns>
-        private bool DetectPinchGesture()
+        /// <param name="newSettings">Новые настройки / New settings</param>
+        public void UpdateTouchSettings(TouchDetectionSettings newSettings)
         {
-            if (rightOVRHand != null)
-            {
-                // Используем встроенное определение pinch в OVRHand
-                // Use built-in pinch detection in OVRHand
-                return rightOVRHand.GetFingerIsPinching(OVRHand.HandFinger.Index);
-            }
-            else if (rightHandSkeleton != null)
-            {
-                // Расчет расстояния между указательным и большим пальцем
-                // Calculate distance between index and thumb finger
-                var indexTip = GetBoneTransform(OVRSkeleton.BoneId.Hand_IndexTip);
-                var thumbTip = GetBoneTransform(OVRSkeleton.BoneId.Hand_ThumbTip);
-                
-                if (indexTip != null && thumbTip != null)
-                {
-                    float distance = Vector3.Distance(indexTip.position, thumbTip.position);
-                    return distance <= touchThreshold;
-                }
-            }
-            
-            return false;
-        }
-        
-        /// <summary>
-        /// Обновление позиции указательного пальца с фильтрацией дрожания.
-        /// Update index finger position with jitter filtering.
-        /// </summary>
-        /// <param name="newPosition">Новая позиция / New position</param>
-        private void UpdateIndexFingerPosition(Vector3 newPosition)
-        {
-            // Простая фильтрация дрожания
-            // Simple jitter filtering
-            float distance = Vector3.Distance(_lastIndexPosition, newPosition);
-            
-            if (distance > 0.001f) // Минимальное расстояние для обновления / Minimum distance for update
-            {
-                _lastIndexPosition = newPosition;
-                _indexFingerPosition.OnNext(newPosition);
-            }
-        }
-        
-        /// <summary>
-        /// Обновление состояния касания с дебаунсингом.
-        /// Update touch state with debouncing.
-        /// </summary>
-        /// <param name="isTouching">Новое состояние касания / New touch state</param>
-        private void UpdateTouchState(bool isTouching)
-        {
-            if (_lastTouchState != isTouching)
-            {
-                _lastTouchState = isTouching;
-                _isIndexFingerTouching.OnNext(isTouching);
-                
-                if (debugOutput)
-                {
-                    Debug.Log($"OpenXRHandTrackingService: Touch state changed to {isTouching} / Состояние касания изменено на {isTouching}");
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Освобождение ресурсов.
-        /// Release resources.
-        /// </summary>
-        public void Dispose()
-        {
-            _indexFingerPosition?.Dispose();
-            _isIndexFingerTouching?.Dispose();
-            _uiInteraction?.Dispose();
-            _handTrackingConfidence?.Dispose();
-            _isRightHandTracked?.Dispose();
+            touchSettings = newSettings;
+            _touchStateManager?.UpdateSettings(newSettings);
             
             if (debugOutput)
             {
-                Debug.Log("OpenXRHandTrackingService: Disposed / Освобожден");
+                Debug.Log($"OpenXRHandTrackingService: Touch settings updated - Threshold: {newSettings.pinchThreshold}");
             }
-        }
-        
-        /// <summary>
-        /// Очистка при уничтожении объекта.
-        /// Cleanup on object destruction.
-        /// </summary>
-        private void OnDestroy()
-        {
-            Dispose();
         }
         
         /// <summary>
@@ -421,20 +447,45 @@ namespace ARDrawing.Core.Services
         }
         
         /// <summary>
-        /// Настройка параметров отслеживания во время выполнения.
-        /// Configure tracking parameters at runtime.
+        /// Получение текущего состояния касания.
+        /// Get current touch state.
         /// </summary>
-        /// <param name="newConfidenceThreshold">Новый порог уверенности / New confidence threshold</param>
-        /// <param name="newTouchThreshold">Новый порог касания / New touch threshold</param>
-        public void UpdateTrackingSettings(float newConfidenceThreshold, float newTouchThreshold)
+        /// <returns>Текущее состояние / Current state</returns>
+        public TouchState GetCurrentTouchState()
         {
-            confidenceThreshold = Mathf.Clamp01(newConfidenceThreshold);
-            touchThreshold = Mathf.Max(0.01f, newTouchThreshold);
+            return _touchStateManager?.CurrentState ?? TouchState.None;
+        }
+        
+        /// <summary>
+        /// Освобождение ресурсов.
+        /// Release resources.
+        /// </summary>
+        public void Dispose()
+        {
+            _touchEventsSubscription?.Dispose();
+            _touchStateSubscription?.Dispose();
+            _touchStateManager?.Dispose();
+            
+            _indexFingerPosition?.Dispose();
+            _isIndexFingerTouching?.Dispose();
+            _uiInteraction?.Dispose();
+            _handTrackingConfidence?.Dispose();
+            _isRightHandTracked?.Dispose();
+            _touchEvents?.Dispose();
             
             if (debugOutput)
             {
-                Debug.Log($"OpenXRHandTrackingService: Settings updated - Confidence: {confidenceThreshold}, Touch: {touchThreshold}");
+                Debug.Log("OpenXRHandTrackingService: Disposed");
             }
+        }
+        
+        /// <summary>
+        /// Очистка при уничтожении объекта.
+        /// Cleanup on object destruction.
+        /// </summary>
+        private void OnDestroy()
+        {
+            Dispose();
         }
     }
 }
