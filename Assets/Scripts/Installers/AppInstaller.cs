@@ -4,6 +4,7 @@ using ARDrawing.Core.Services;
 using ARDrawing.Core.Models;
 using ARDrawing.Core.Config;
 using ARDrawing.Presentation.Presenters;
+using ARDrawing.Presentation.Views;
 using ARDrawing.Testing;
 using UnityEngine;
 
@@ -95,6 +96,27 @@ namespace ARDrawing.Installers
                 
             Container
                 .Bind<DrawingPresenter>()
+                .FromNewComponentOnNewGameObject()
+                .AsSingle()
+                .NonLazy();
+            
+            // AR Drawing View для enhanced визуализации
+            // AR Drawing View for enhanced visualization
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing ARDrawingView...");
+                
+            Container
+                .Bind<ARDrawingView>()
+                .FromNewComponentOnNewGameObject()
+                .AsSingle()
+                .NonLazy();
+            
+            // AR Drawing View Tester
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing ARDrawingViewTester...");
+                
+            Container
+                .Bind<ARDrawingViewTester>()
                 .FromNewComponentOnNewGameObject()
                 .AsSingle()
                 .NonLazy();
