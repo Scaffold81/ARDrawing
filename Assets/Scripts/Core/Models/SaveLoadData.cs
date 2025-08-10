@@ -129,26 +129,23 @@ namespace ARDrawing.Core.Models
         public SerializableDrawingLine(DrawingLine originalLine)
         {
             points = new List<SerializableVector3>();
-            foreach (var point in originalLine.points)
+            foreach (var point in originalLine.Points)
             {
                 points.Add(new SerializableVector3(point));
             }
-            color = new SerializableColor(originalLine.color);
-            thickness = originalLine.thickness;
-            creationTime = originalLine.creationTime;
-            lineId = originalLine.lineId;
+            color = new SerializableColor(originalLine.Color);
+            thickness = originalLine.Width;
+            creationTime = (float)(originalLine.CreatedTime - System.DateTime.UnixEpoch).TotalSeconds;
+            lineId = System.Guid.NewGuid().ToString();
         }
         
         public DrawingLine ToDrawingLine()
         {
             var line = new DrawingLine(color.ToColor(), thickness);
-            line.creationTime = creationTime;
-            line.lineId = lineId;
-            line.points.Clear();
             
             foreach (var point in points)
             {
-                line.points.Add(point.ToVector3());
+                line.AddPoint(point.ToVector3());
             }
             
             return line;

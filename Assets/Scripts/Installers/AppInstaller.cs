@@ -2,6 +2,7 @@ using Zenject;
 using ARDrawing.Core.Interfaces;
 using ARDrawing.Core.Services;
 using ARDrawing.Core.Models;
+using ARDrawing.Core.Config;
 using ARDrawing.Testing;
 using UnityEngine;
 
@@ -17,7 +18,7 @@ namespace ARDrawing.Installers
         [SerializeField] private bool useHandTrackingSimulator = false;
         
         [Header("Service Settings")]
-        [SerializeField] private DrawingSettings defaultDrawingSettings;
+        [SerializeField] private DrawingSettingsConfig drawingSettingsConfig;
         
         [Header("Performance Settings")]  
         [SerializeField] private bool enableDebugLogging = true;
@@ -70,6 +71,7 @@ namespace ARDrawing.Installers
             Container
                 .Bind<IDrawingService>()
                 .To<DrawingService>()
+                .FromNewComponentOnNewGameObject()
                 .AsSingle()
                 .NonLazy();
             
@@ -96,17 +98,28 @@ namespace ARDrawing.Installers
         /// </summary>
         private void InstallConfigurations()
         {
-            // Настройки рисования по умолчанию
-            // Default drawing settings
-            if (defaultDrawingSettings.Equals(default(DrawingSettings)))
+            // Настройки рисования из ScriptableObject
+            // Drawing settings from ScriptableObject
+            if (drawingSettingsConfig != null)
             {
-                defaultDrawingSettings = DrawingSettings.Default;
+                Container
+                    .Bind<DrawingSettingsConfig>()
+                    .FromInstance(drawingSettingsConfig)
+                    .AsSingle();
+                    
+                Container
+                    .Bind<DrawingSettings>()
+                    .FromInstance(drawingSettingsConfig.ToDrawingSettings())
+                    .AsSingle();
             }
-            
-            Container
-                .Bind<DrawingSettings>()
-                .FromInstance(defaultDrawingSettings)
-                .AsSingle();
+            else
+            {
+                // Настройки по умолчанию если ScriptableObject не назначен
+                Container
+                    .Bind<DrawingSettings>()
+                    .FromInstance(DrawingSettings.Default)
+                    .AsSingle();
+            }
         }
         
         /// <summary>
@@ -115,12 +128,8 @@ namespace ARDrawing.Installers
         /// </summary>
         private void InstallFactories()
         {
-            // Фабрика для создания линий рисования
-            // Factory for creating drawing lines
-            Container
-                .Bind<IFactory<DrawingLine>>()
-                .To<DrawingLineFactory>()
-                .AsSingle();
+            // Пока оставляем пустым - фабрики будут добавлены позже
+            // Leave empty for now - factories will be added later
         }
         
         /// <summary>
@@ -129,16 +138,11 @@ namespace ARDrawing.Installers
         /// </summary>
         private void OnValidate()
         {
-            // Проверяем что настройки корректны
-            // Check that settings are correct
-            if (defaultDrawingSettings.lineThickness <= 0)
+            // Проверяем что DrawingSettingsConfig назначен
+            // Check that DrawingSettingsConfig is assigned
+            if (drawingSettingsConfig != null)
             {
-                defaultDrawingSettings.lineThickness = 0.01f;
-            }
-            
-            if (defaultDrawingSettings.minPointDistance <= 0)
-            {
-                defaultDrawingSettings.minPointDistance = 0.005f;
+                drawingSettingsConfig.ValidateSettings();
             }
         }
     }
