@@ -51,14 +51,17 @@ namespace ARDrawing.UI.Components
         public UnityEvent<bool> OnHoverChanged;
         
         // Reactive Properties
-        private readonly ReactiveProperty<ButtonState> currentState = new ReactiveProperty<ButtonState>(ButtonState.Normal);
-        private readonly ReactiveProperty<bool> isHovered = new ReactiveProperty<bool>(false);
-        private readonly ReactiveProperty<bool> isPressed = new ReactiveProperty<bool>(false);
+        private ReactiveProperty<ButtonState> currentState;
+        private ReactiveProperty<bool> isHovered;
+        private ReactiveProperty<bool> isPressed;
+        
+        // Disposal tracking
+        private bool _isDisposed = false;
         
         // Public Observables
-        public Observable<ButtonState> State => currentState.AsObservable();
-        public Observable<bool> IsHovered => isHovered.AsObservable();
-        public Observable<bool> IsPressed => isPressed.AsObservable();
+        public Observable<ButtonState> State => currentState?.AsObservable() ?? Observable.Empty<ButtonState>();
+        public Observable<bool> IsHovered => isHovered?.AsObservable() ?? Observable.Empty<bool>();
+        public Observable<bool> IsPressed => isPressed?.AsObservable() ?? Observable.Empty<bool>();
         
         // Components
         private Collider buttonCollider;
@@ -148,6 +151,13 @@ namespace ARDrawing.UI.Components
         
         private void InitializeButton()
         {
+            if (_isDisposed) return;
+            
+            // Initialize reactive properties
+            currentState = new ReactiveProperty<ButtonState>(ButtonState.Normal);
+            isHovered = new ReactiveProperty<bool>(false);
+            isPressed = new ReactiveProperty<bool>(false);
+            
             UpdateVisualState();
             
             Debug.Log($"[InteractableButton] {buttonId} initialized - Type: {buttonType}");
@@ -445,13 +455,41 @@ namespace ARDrawing.UI.Components
         
         private void CleanupButton()
         {
-            currentState?.Dispose();
-            isHovered?.Dispose();
-            isPressed?.Dispose();
+            if (_isDisposed) return;
+            _isDisposed = true;
             
+            // Stop any running animations
             if (currentAnimation != null)
             {
                 StopCoroutine(currentAnimation);
+                currentAnimation = null;
+            }
+            
+            // Dispose reactive properties safely
+            DisposeReactiveProperty(ref currentState, "CurrentState");
+            DisposeReactiveProperty(ref isHovered, "IsHovered");
+            DisposeReactiveProperty(ref isPressed, "IsPressed");
+        }
+        
+        private void DisposeReactiveProperty<T>(ref ReactiveProperty<T> property, string name)
+        {
+            if (property != null)
+            {
+                try
+                {
+                    if (!property.IsDisposed)
+                    {
+                        property.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[InteractableButton] Error disposing {name}: {ex.Message}");
+                }
+                finally
+                {
+                    property = null;
+                }
             }
         }
         

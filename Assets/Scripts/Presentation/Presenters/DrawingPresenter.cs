@@ -30,10 +30,13 @@ namespace ARDrawing.Presentation.Presenters
         [Inject] private IDrawingService drawingService;
         
         // Reactive Properties
-        private readonly ReactiveProperty<bool> isDrawingActive = new ReactiveProperty<bool>(false);
-        private readonly ReactiveProperty<Vector3> currentDrawingPosition = new ReactiveProperty<Vector3>(Vector3.zero);
-        private readonly ReactiveProperty<float> drawingConfidence = new ReactiveProperty<float>(0f);
-        private readonly ReactiveProperty<TouchState> currentTouchState = new ReactiveProperty<TouchState>(TouchState.None);
+        private ReactiveProperty<bool> isDrawingActive;
+        private ReactiveProperty<Vector3> currentDrawingPosition;
+        private ReactiveProperty<float> drawingConfidence;
+        private ReactiveProperty<TouchState> currentTouchState;
+        
+        // Disposal tracking
+        private bool _isDisposed = false;
         
         // Observable Streams
         private IDisposable touchStateSubscription;
@@ -94,8 +97,13 @@ namespace ARDrawing.Presentation.Presenters
         
         private void InitializeReactiveStreams()
         {
+            if (_isDisposed) return;
+            
             if (enableDebugLog)
                 Debug.Log("[DrawingPresenter] Initializing reactive streams...");
+            
+            // Initialize reactive properties
+            InitializeReactiveProperties();
             
             // Проверка зависимостей
             if (!ValidateDependencies())
@@ -115,6 +123,16 @@ namespace ARDrawing.Presentation.Presenters
             
             if (enableDebugLog)
                 Debug.Log("[DrawingPresenter] Reactive streams initialized successfully");
+        }
+        
+        private void InitializeReactiveProperties()
+        {
+            if (_isDisposed) return;
+            
+            isDrawingActive = new ReactiveProperty<bool>(false);
+            currentDrawingPosition = new ReactiveProperty<Vector3>(Vector3.zero);
+            drawingConfidence = new ReactiveProperty<float>(0f);
+            currentTouchState = new ReactiveProperty<TouchState>(TouchState.None);
         }
         
         private bool ValidateDependencies()
@@ -476,18 +494,65 @@ namespace ARDrawing.Presentation.Presenters
         
         private void DisposeSubscriptions()
         {
+            if (_isDisposed) return;
+            
             if (enableDebugLog)
                 Debug.Log("[DrawingPresenter] Disposing reactive subscriptions...");
             
-            touchStateSubscription?.Dispose();
-            fingerPositionSubscription?.Dispose();
-            drawingLogicSubscription?.Dispose();
-            confidenceSubscription?.Dispose();
+            // Dispose subscriptions safely
+            DisposeSubscription(ref touchStateSubscription, "TouchState");
+            DisposeSubscription(ref fingerPositionSubscription, "FingerPosition");
+            DisposeSubscription(ref drawingLogicSubscription, "DrawingLogic");
+            DisposeSubscription(ref confidenceSubscription, "Confidence");
             
-            isDrawingActive?.Dispose();
-            currentDrawingPosition?.Dispose();
-            drawingConfidence?.Dispose();
-            currentTouchState?.Dispose();
+            // Dispose reactive properties safely
+            DisposeReactiveProperty(ref isDrawingActive, "IsDrawingActive");
+            DisposeReactiveProperty(ref currentDrawingPosition, "CurrentDrawingPosition");
+            DisposeReactiveProperty(ref drawingConfidence, "DrawingConfidence");
+            DisposeReactiveProperty(ref currentTouchState, "CurrentTouchState");
+            
+            _isDisposed = true;
+        }
+        
+        private void DisposeSubscription(ref IDisposable subscription, string name)
+        {
+            if (subscription != null)
+            {
+                try
+                {
+                    subscription.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[DrawingPresenter] Error disposing {name} subscription: {ex.Message}");
+                }
+                finally
+                {
+                    subscription = null;
+                }
+            }
+        }
+        
+        private void DisposeReactiveProperty<T>(ref ReactiveProperty<T> property, string name)
+        {
+            if (property != null)
+            {
+                try
+                {
+                    if (!property.IsDisposed)
+                    {
+                        property.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[DrawingPresenter] Error disposing {name} property: {ex.Message}");
+                }
+                finally
+                {
+                    property = null;
+                }
+            }
         }
         
         #endregion
@@ -498,19 +563,19 @@ namespace ARDrawing.Presentation.Presenters
         /// Получает текущее состояние рисования как Observable.
         /// Gets current drawing state as Observable.
         /// </summary>
-        public Observable<bool> IsDrawingActive => isDrawingActive.AsObservable();
+        public Observable<bool> IsDrawingActive => isDrawingActive?.AsObservable() ?? Observable.Empty<bool>();
         
         /// <summary>
         /// Получает текущую позицию рисования как Observable.
         /// Gets current drawing position as Observable.
         /// </summary>
-        public Observable<Vector3> CurrentDrawingPosition => currentDrawingPosition.AsObservable();
+        public Observable<Vector3> CurrentDrawingPosition => currentDrawingPosition?.AsObservable() ?? Observable.Empty<Vector3>();
         
         /// <summary>
         /// Получает уверенность отслеживания как Observable.
         /// Gets tracking confidence as Observable.
         /// </summary>
-        public Observable<float> DrawingConfidence => drawingConfidence.AsObservable();
+        public Observable<float> DrawingConfidence => drawingConfidence?.AsObservable() ?? Observable.Empty<float>();
         
         /// <summary>
         /// Принудительно останавливает текущее рисование.
@@ -547,6 +612,8 @@ namespace ARDrawing.Presentation.Presenters
         /// </summary>
         public void UpdateFilteringSettings(float newThrottleMs, float newMinDistance, float newConfidenceThreshold)
         {
+            if (_isDisposed) return;
+            
             drawingThrottleMs = newThrottleMs;
             minMovementDistance = newMinDistance;
             touchConfidenceThreshold = newConfidenceThreshold;
@@ -557,17 +624,33 @@ namespace ARDrawing.Presentation.Presenters
                          $"MinDistance: {newMinDistance}, Confidence: {newConfidenceThreshold}");
             }
             
-            // Пересоздаем стримы с новыми настройками
-            DisposeSubscriptions();
-            
-            // Проверяем что зависимости все еще доступны
-            if (ValidateDependencies())
+            // Безопасно пересоздаем стримы с новыми настройками
+            SafeRecreateStreams();
+        }
+        
+        private void SafeRecreateStreams()
+        {
+            try
             {
-                // Повторно создаем только position стрим, который использует новые настройки
-                SetupTouchStateStream();
-                SetupFingerPositionStream();
-                SetupConfidenceStream();
-                SetupDrawingLogic();
+                // Dispose old subscriptions only (not reactive properties)
+                DisposeSubscription(ref touchStateSubscription, "TouchState");
+                DisposeSubscription(ref fingerPositionSubscription, "FingerPosition");
+                DisposeSubscription(ref drawingLogicSubscription, "DrawingLogic");
+                DisposeSubscription(ref confidenceSubscription, "Confidence");
+                
+                // Проверяем что зависимости все еще доступны
+                if (ValidateDependencies() && !_isDisposed)
+                {
+                    // Повторно создаем только subscriptions
+                    SetupTouchStateStream();
+                    SetupFingerPositionStream();
+                    SetupConfidenceStream();
+                    SetupDrawingLogic();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DrawingPresenter] Error recreating streams: {ex.Message}");
             }
         }
         

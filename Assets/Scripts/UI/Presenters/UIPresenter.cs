@@ -28,12 +28,15 @@ namespace ARDrawing.UI.Presenters
         [Inject] private IDrawingService drawingService;
         
         // UI State
-        private readonly ReactiveProperty<UIMode> currentUIMode = new ReactiveProperty<UIMode>(UIMode.Drawing);
-        private readonly ReactiveProperty<Color> selectedColor = new ReactiveProperty<Color>(Color.white);
+        private ReactiveProperty<UIMode> currentUIMode;
+        private ReactiveProperty<Color> selectedColor;
+        
+        // Disposal tracking
+        private bool _isDisposed = false;
         
         // Public Observables
-        public Observable<UIMode> CurrentUIMode => currentUIMode.AsObservable();
-        public Observable<Color> SelectedColor => selectedColor.AsObservable();
+        public Observable<UIMode> CurrentUIMode => currentUIMode?.AsObservable() ?? Observable.Empty<UIMode>();
+        public Observable<Color> SelectedColor => selectedColor?.AsObservable() ?? Observable.Empty<Color>();
         
         #region Unity Lifecycle
         
@@ -59,8 +62,11 @@ namespace ARDrawing.UI.Presenters
         
         private void InitializeUI()
         {
-            selectedColor.Value = Color.white;
-            currentUIMode.Value = UIMode.Drawing;
+            if (_isDisposed) return;
+            
+            // Initialize reactive properties
+            currentUIMode = new ReactiveProperty<UIMode>(UIMode.Drawing);
+            selectedColor = new ReactiveProperty<Color>(Color.white);
             
             if (showDebugInfo)
                 Debug.Log("[UIPresenter] UI system initialized");
@@ -303,11 +309,43 @@ namespace ARDrawing.UI.Presenters
         
         private void CleanupUI()
         {
-            currentUIMode?.Dispose();
-            selectedColor?.Dispose();
+            if (_isDisposed) return;
+            _isDisposed = true;
+            
+            try
+            {
+                if (currentUIMode != null && !currentUIMode.IsDisposed)
+                {
+                    currentUIMode.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[UIPresenter] Error disposing currentUIMode: {ex.Message}");
+            }
+            finally
+            {
+                currentUIMode = null;
+            }
+            
+            try
+            {
+                if (selectedColor != null && !selectedColor.IsDisposed)
+                {
+                    selectedColor.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[UIPresenter] Error disposing selectedColor: {ex.Message}");
+            }
+            finally
+            {
+                selectedColor = null;
+            }
             
             if (showDebugInfo)
-                Debug.Log("[UIPresenter] UI system cleaned up");
+                Debug.Log("[UIPresenter] UI system cleaned up safely");
         }
         
         #endregion

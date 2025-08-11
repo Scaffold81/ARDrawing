@@ -24,12 +24,15 @@ namespace ARDrawing.Core.Services
         [SerializeField] private OVRSkeleton rightHandSkeleton;
         
         // R3 Observable потоки / R3 Observable streams
-        private readonly Subject<Vector3> _indexFingerPosition = new();
-        private readonly Subject<bool> _isIndexFingerTouching = new();
-        private readonly Subject<HandInteractionData> _uiInteraction = new();
-        private readonly Subject<float> _handTrackingConfidence = new();
-        private readonly Subject<bool> _isRightHandTracked = new();
-        private readonly Subject<TouchEventData> _touchEvents = new();
+        private Subject<Vector3> _indexFingerPosition;
+        private Subject<bool> _isIndexFingerTouching;
+        private Subject<HandInteractionData> _uiInteraction;
+        private Subject<float> _handTrackingConfidence;
+        private Subject<bool> _isRightHandTracked;
+        private Subject<TouchEventData> _touchEvents;
+        
+        // Disposal tracking
+        private bool _isDisposed = false;
         
         // Touch State Manager / Менеджер состояний касания
         private TouchStateManager _touchStateManager;
@@ -46,17 +49,17 @@ namespace ARDrawing.Core.Services
         private bool _lastTouchState = false;
         private float _lastConfidence = 0f;
         
-        public Observable<Vector3> IndexFingerPosition => _indexFingerPosition.AsObservable();
-        public Observable<bool> IsIndexFingerTouching => _isIndexFingerTouching.AsObservable();
-        public Observable<HandInteractionData> UIInteraction => _uiInteraction.AsObservable();
-        public Observable<float> HandTrackingConfidence => _handTrackingConfidence.AsObservable();
-        public Observable<bool> IsRightHandTracked => _isRightHandTracked.AsObservable();
+        public Observable<Vector3> IndexFingerPosition => _indexFingerPosition?.AsObservable() ?? Observable.Empty<Vector3>();
+        public Observable<bool> IsIndexFingerTouching => _isIndexFingerTouching?.AsObservable() ?? Observable.Empty<bool>();
+        public Observable<HandInteractionData> UIInteraction => _uiInteraction?.AsObservable() ?? Observable.Empty<HandInteractionData>();
+        public Observable<float> HandTrackingConfidence => _handTrackingConfidence?.AsObservable() ?? Observable.Empty<float>();
+        public Observable<bool> IsRightHandTracked => _isRightHandTracked?.AsObservable() ?? Observable.Empty<bool>();
         
         /// <summary>
         /// Дополнительный Observable для детальных событий касания.
         /// Additional Observable for detailed touch events.
         /// </summary>
-        public Observable<TouchEventData> TouchEvents => _touchEvents.AsObservable();
+        public Observable<TouchEventData> TouchEvents => _touchEvents?.AsObservable() ?? Observable.Empty<TouchEventData>();
         
         /// <summary>
         /// Инициализация сервиса отслеживания рук.
@@ -64,8 +67,25 @@ namespace ARDrawing.Core.Services
         /// </summary>
         private void Start()
         {
+            InitializeObservables();
             InitializeHandTracking();
             InitializeTouchStateManager();
+        }
+        
+        /// <summary>
+        /// Инициализация Observable потоков.
+        /// Initialize Observable streams.
+        /// </summary>
+        private void InitializeObservables()
+        {
+            if (_isDisposed) return;
+            
+            _indexFingerPosition = new Subject<Vector3>();
+            _isIndexFingerTouching = new Subject<bool>();
+            _uiInteraction = new Subject<HandInteractionData>();
+            _handTrackingConfidence = new Subject<float>();
+            _isRightHandTracked = new Subject<bool>();
+            _touchEvents = new Subject<TouchEventData>();
         }
         
         /// <summary>
@@ -156,6 +176,7 @@ namespace ARDrawing.Core.Services
         /// <param name="touchEvent">Данные события / Event data</param>
         private void OnTouchEvent(TouchEventData touchEvent)
         {
+            if (_isDisposed) return;
             // Обновляем Observable потоки
             // Update Observable streams
             _indexFingerPosition.OnNext(touchEvent.position);
@@ -189,7 +210,7 @@ namespace ARDrawing.Core.Services
             
             // Отправляем детальное событие касания
             // Send detailed touch event
-            _touchEvents.OnNext(touchEvent);
+            _touchEvents?.OnNext(touchEvent);
         }
         
         /// <summary>
@@ -472,20 +493,78 @@ namespace ARDrawing.Core.Services
         /// </summary>
         public void Dispose()
         {
-            _touchEventsSubscription?.Dispose();
-            _touchStateSubscription?.Dispose();
-            _touchStateManager?.Dispose();
+            if (_isDisposed) return;
+            _isDisposed = true;
             
-            _indexFingerPosition?.Dispose();
-            _isIndexFingerTouching?.Dispose();
-            _uiInteraction?.Dispose();
-            _handTrackingConfidence?.Dispose();
-            _isRightHandTracked?.Dispose();
-            _touchEvents?.Dispose();
+            // Dispose subscriptions first
+            try
+            {
+                _touchEventsSubscription?.Dispose();
+                _touchEventsSubscription = null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error disposing touch events subscription: {ex.Message}");
+            }
+            
+            try
+            {
+                _touchStateSubscription?.Dispose();
+                _touchStateSubscription = null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error disposing touch state subscription: {ex.Message}");
+            }
+            
+            // Dispose TouchStateManager
+            try
+            {
+                _touchStateManager?.Dispose();
+                _touchStateManager = null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Error disposing touch state manager: {ex.Message}");
+            }
+            
+            // Dispose Observable subjects
+            DisposeSubject(ref _indexFingerPosition, "IndexFingerPosition");
+            DisposeSubject(ref _isIndexFingerTouching, "IsIndexFingerTouching");
+            DisposeSubject(ref _uiInteraction, "UIInteraction");
+            DisposeSubject(ref _handTrackingConfidence, "HandTrackingConfidence");
+            DisposeSubject(ref _isRightHandTracked, "IsRightHandTracked");
+            DisposeSubject(ref _touchEvents, "TouchEvents");
             
             if (debugOutput)
             {
-                Debug.Log("OpenXRHandTrackingService: Disposed");
+                Debug.Log("OpenXRHandTrackingService: Disposed safely");
+            }
+        }
+        
+        /// <summary>
+        /// Безопасное освобождение Subject.
+        /// Safe disposal of Subject.
+        /// </summary>
+        private void DisposeSubject<T>(ref Subject<T> subject, string name)
+        {
+            if (subject != null)
+            {
+                try
+                {
+                    if (!subject.IsDisposed)
+                    {
+                        subject.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error disposing {name} subject: {ex.Message}");
+                }
+                finally
+                {
+                    subject = null;
+                }
             }
         }
         

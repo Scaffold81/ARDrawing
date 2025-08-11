@@ -30,6 +30,10 @@ namespace ARDrawing.Presentation.Views
         // Visual Components
         private Dictionary<DrawingLine, LineRenderer> lineRenderers = new Dictionary<DrawingLine, LineRenderer>();
         private Queue<LineRenderer> rendererPool = new Queue<LineRenderer>();
+        private List<Material> dynamicMaterials = new List<Material>();
+        
+        // Disposal tracking
+        private bool _isDisposed = false;
         
         // Reactive Subscriptions
         private IDisposable activeLinesSubscription;
@@ -107,6 +111,7 @@ namespace ARDrawing.Presentation.Views
         {
             var material = new Material(Shader.Find("Sprites/Default"));
             material.color = Color.white;
+            dynamicMaterials.Add(material); // Track for cleanup
             return material;
         }
         
@@ -359,26 +364,77 @@ namespace ARDrawing.Presentation.Views
         
         private void CleanupSystem()
         {
-            activeLinesSubscription?.Dispose();
+            if (_isDisposed) return;
+            _isDisposed = true;
             
-            // Cleanup all renderers
-            foreach (var renderer in lineRenderers.Values)
+            // Dispose subscription
+            try
             {
-                if (renderer != null && renderer.gameObject != null)
-                    Destroy(renderer.gameObject);
+                activeLinesSubscription?.Dispose();
             }
-            lineRenderers.Clear();
-            
-            // Cleanup pool
-            while (rendererPool.Count > 0)
+            catch (Exception ex)
             {
-                var renderer = rendererPool.Dequeue();
-                if (renderer != null && renderer.gameObject != null)
-                    Destroy(renderer.gameObject);
+                Debug.LogError($"[ARDrawingView] Error disposing subscription: {ex.Message}");
+            }
+            finally
+            {
+                activeLinesSubscription = null;
+            }
+            
+            // Cleanup all renderers safely
+            try
+            {
+                foreach (var kvp in lineRenderers)
+                {
+                    var renderer = kvp.Value;
+                    if (renderer != null && renderer.gameObject != null)
+                    {
+                        Destroy(renderer.gameObject);
+                    }
+                }
+                lineRenderers.Clear();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ARDrawingView] Error cleaning up line renderers: {ex.Message}");
+            }
+            
+            // Cleanup pool safely
+            try
+            {
+                while (rendererPool.Count > 0)
+                {
+                    var renderer = rendererPool.Dequeue();
+                    if (renderer != null && renderer.gameObject != null)
+                    {
+                        Destroy(renderer.gameObject);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ARDrawingView] Error cleaning up renderer pool: {ex.Message}");
+            }
+            
+            // Cleanup dynamic materials
+            try
+            {
+                foreach (var material in dynamicMaterials)
+                {
+                    if (material != null)
+                    {
+                        DestroyImmediate(material);
+                    }
+                }
+                dynamicMaterials.Clear();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ARDrawingView] Error cleaning up materials: {ex.Message}");
             }
             
             if (enableDebugLog)
-                Debug.Log("[ARDrawingView] Enhanced view system cleaned up");
+                Debug.Log("[ARDrawingView] Enhanced view system cleaned up safely");
         }
         
         #endregion

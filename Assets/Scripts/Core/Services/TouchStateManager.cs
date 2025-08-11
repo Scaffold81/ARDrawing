@@ -15,8 +15,8 @@ namespace ARDrawing.Core.Services
         private TouchDetectionSettings _settings;
         
         // R3 Observable потоки / R3 Observable streams
-        private readonly Subject<TouchEventData> _touchEvents = new();
-        private readonly Subject<TouchState> _touchStateChanged = new();
+        private readonly Subject<TouchEventData> _touchEvents = new Subject<TouchEventData>();
+        private readonly Subject<TouchState> _touchStateChanged = new Subject<TouchState>();
         
         // Внутреннее состояние / Internal state
         private TouchState _currentState = TouchState.None;
@@ -287,23 +287,39 @@ namespace ARDrawing.Core.Services
         /// </summary>
         public void Dispose()
         {
-            _touchEvents?.Dispose();
-            _touchStateChanged?.Dispose();
+            try
+            {
+                _touchEvents?.Dispose();
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"TouchStateManager: Error disposing _touchEvents: {ex.Message}");
+            }
             
-            Debug.Log("TouchStateManager: Disposed");
+            try
+            {
+                _touchStateChanged?.Dispose();
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"TouchStateManager: Error disposing _touchStateChanged: {ex.Message}");
+            }
+            
+            Debug.Log("TouchStateManager: Disposed safely");
         }
     }
     
     /// <summary>
-    /// Кольцевой буфер для хранения истории значений.
-    /// Circular buffer for storing value history.
+    /// Кольцевой буфер для хранения истории значений с IDisposable поддержкой.
+    /// Circular buffer for storing value history with IDisposable support.
     /// </summary>
     /// <typeparam name="T">Тип хранимых значений / Type of stored values</typeparam>
-    public class CircularBuffer<T>
+    public class CircularBuffer<T> : IDisposable
     {
-        private readonly T[] _buffer;
+        private T[] _buffer;
         private int _head = 0;
         private int _count = 0;
+        private bool _isDisposed = false;
         
         public int Count => _count;
         
@@ -314,6 +330,8 @@ namespace ARDrawing.Core.Services
         
         public void Add(T item)
         {
+            if (_isDisposed) return;
+            
             _buffer[_head] = item;
             _head = (_head + 1) % _buffer.Length;
             
@@ -325,7 +343,7 @@ namespace ARDrawing.Core.Services
         {
             get
             {
-                if (index >= _count)
+                if (_isDisposed || index >= _count)
                     throw new IndexOutOfRangeException();
                     
                 int actualIndex = (_head - _count + index + _buffer.Length) % _buffer.Length;
@@ -335,8 +353,25 @@ namespace ARDrawing.Core.Services
         
         public void Clear()
         {
+            if (_isDisposed) return;
+            
+            // Clear references for GC
+            for (int i = 0; i < _buffer.Length; i++)
+            {
+                _buffer[i] = default(T);
+            }
+            
             _head = 0;
             _count = 0;
+        }
+        
+        public void Dispose()
+        {
+            if (_isDisposed) return;
+            _isDisposed = true;
+            
+            Clear();
+            _buffer = null;
         }
     }
 }

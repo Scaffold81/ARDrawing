@@ -514,19 +514,34 @@ namespace ARDrawing.Core.Services
         
         private void DisposeService()
         {
-            // Очистка всех линий
-            ClearAllLines();
-            
-            // Очистка пула
-            _lineRendererPool?.Clear();
-            
-            // Освобождение Observable
-            _activeLinesSubject?.Dispose();
-            _isDrawingSubject?.Dispose();
-            
-            if (_enableDebugLog)
+            try
             {
-                Debug.Log("[DrawingService] Service disposed");
+                // Очистка всех линий
+                ClearAllLines();
+                
+                // Очистка пула с проверкой
+                if (_lineRendererPool != null)
+                {
+                    _lineRendererPool.Clear();
+                    _lineRendererPool = null;
+                }
+                
+                // Освобождение Observable с проверкой
+                _activeLinesSubject?.Dispose();
+                _isDrawingSubject?.Dispose();
+                
+                // Очистка текущих ссылок
+                _currentLine = null;
+                _currentRenderer = null;
+                
+                if (_enableDebugLog)
+                {
+                    Debug.Log("[DrawingService] Service disposed safely");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[DrawingService] Error during disposal: {ex.Message}");
             }
         }
         
