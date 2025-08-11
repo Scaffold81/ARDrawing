@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using R3;
 using System;
 using System.Linq;
@@ -60,6 +61,31 @@ namespace ARDrawing.Presentation.Presenters
         private void OnDestroy()
         {
             DisposeSubscriptions();
+        }
+        
+        #endregion
+        
+        #region UI Interaction Check
+        
+        /// <summary>
+        /// Проверяет находится ли мышь/палец над UI элементом.
+        /// Checks if mouse/finger is over UI element.
+        /// </summary>
+        private bool IsPointerOverUI()
+        {
+            // Для Editor - проверяем мышь
+            if (Application.isEditor)
+            {
+                return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            }
+            
+            // Для реального устройства - проверяем касания
+            if (Input.touchCount > 0)
+            {
+                return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId);
+            }
+            
+            return false;
         }
         
         #endregion
@@ -131,6 +157,22 @@ namespace ARDrawing.Presentation.Presenters
         {
             try
             {
+                // Проверка что мы не кликаем по UI элементам (для Editor)
+                if (IsPointerOverUI())
+                {
+                    if (enableDebugLog)
+                        Debug.Log("[DrawingPresenter] Pointer over UI - ignoring touch");
+                    
+                    // ОБЯЗАТЕЛЬНО завершить текущую линию при клике по UI
+                    if (isCurrentlyDrawing)
+                    {
+                        EndDrawing();
+                        if (enableDebugLog)
+                            Debug.Log("[DrawingPresenter] Ended drawing due to UI interaction");
+                    }
+                    return;
+                }
+                
                 var newState = isTouching ? TouchState.Active : TouchState.None;
                 
                 if (enableDebugLog)
@@ -212,6 +254,22 @@ namespace ARDrawing.Presentation.Presenters
         {
             try
             {
+                // Проверка UI перед добавлением точки - ОБЯЗАТЕЛЬНО!
+                if (IsPointerOverUI())
+                {
+                    if (enableDebugLog)
+                        Debug.Log("[DrawingPresenter] Position update ignored - pointer over UI");
+                    
+                    // Принудительно завершить линию если навели на UI
+                    if (isCurrentlyDrawing)
+                    {
+                        EndDrawing();
+                        if (enableDebugLog)
+                            Debug.Log("[DrawingPresenter] Force ended drawing - moved over UI");
+                    }
+                    return;
+                }
+                
                 // Простое throttling через временную проверку
                 var currentTime = DateTime.Now;
                 var deltaTime = (float)(currentTime - lastDrawTime).TotalMilliseconds;
@@ -311,15 +369,27 @@ namespace ARDrawing.Presentation.Presenters
                 return;
             }
             
-            Vector3 startPosition = currentDrawingPosition.Value;
+            // Получаем ТЕКУЩУЮ позицию пальца напрямую с HandTrackingService
+            Vector3 actualStartPosition = handTrackingService.GetCurrentIndexFingerPosition();
+            
+            // Проверка что позиция корректна
+            if (!IsValidVector3(actualStartPosition))
+            {
+                if (enableDebugLog)
+                    Debug.LogWarning($"[DrawingPresenter] Invalid start position: {actualStartPosition}, using fallback");
+                actualStartPosition = currentDrawingPosition.Value;
+            }
             
             if (enableDebugLog)
-                Debug.Log($"[DrawingPresenter] Starting drawing at {startPosition}");
+                Debug.Log($"[DrawingPresenter] Starting NEW drawing at ACTUAL position: {actualStartPosition}");
             
-            drawingService.StartLine(startPosition);
+            drawingService.StartLine(actualStartPosition);
             isCurrentlyDrawing = true;
             isDrawingActive.Value = true;
-            lastDrawingPosition = startPosition;
+            
+            // Обновляем последнюю позицию на актуальную
+            lastDrawingPosition = actualStartPosition;
+            currentDrawingPosition.Value = actualStartPosition;
             lastDrawTime = DateTime.Now;
             
             // Сброс статистики для новой линии
@@ -355,6 +425,12 @@ namespace ARDrawing.Presentation.Presenters
             drawingService.EndLine();
             isCurrentlyDrawing = false;
             isDrawingActive.Value = false;
+            
+            // Очищаем последние позиции чтобы не использовать старые данные
+            lastDrawingPosition = Vector3.zero;
+            
+            if (enableDebugLog)
+                Debug.Log("[DrawingPresenter] Drawing ended and position cleared");
         }
         
         #endregion

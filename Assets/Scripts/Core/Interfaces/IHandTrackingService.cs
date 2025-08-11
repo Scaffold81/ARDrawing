@@ -39,5 +39,12 @@ namespace ARDrawing.Core.Interfaces
         /// Observable stream of active hand detection for drawing.
         /// </summary>
         Observable<bool> IsRightHandTracked { get; }
+        
+        /// <summary>
+        /// Получить текущую позицию указательного пальца.
+        /// Get current index finger position.
+        /// </summary>
+        /// <returns>Текущая позиция / Current position</returns>
+        Vector3 GetCurrentIndexFingerPosition();
     }
 }

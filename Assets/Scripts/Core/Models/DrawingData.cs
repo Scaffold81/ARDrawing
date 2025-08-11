@@ -284,4 +284,26 @@ namespace ARDrawing.Core.Models
             }
         }
     }
+    
+    /// <summary>
+    /// Типы инструментов рисования.
+    /// Drawing tool types.
+    /// </summary>
+    public enum DrawingTool
+    {
+        Pen,
+        Eraser,
+        Line,
+        Shape
+    }
+    
+    /// <summary>
+    /// Режимы UI взаимодействия.
+    /// UI interaction modes.
+    /// </summary>
+    public enum UIInteractionMode
+    {
+        Drawing,
+        ColorPicker
+    }
 }

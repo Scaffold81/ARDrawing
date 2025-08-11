@@ -366,6 +366,16 @@ namespace ARDrawing.Testing
         }
         
         /// <summary>
+        /// Получить текущую позицию указательного пальца.
+        /// Get current index finger position.
+        /// </summary>
+        /// <returns>Текущая позиция / Current position</returns>
+        public Vector3 GetCurrentIndexFingerPosition()
+        {
+            return _currentFingerPosition;
+        }
+        
+        /// <summary>
         /// Освобождение ресурсов.
         /// Release resources.
         /// </summary>

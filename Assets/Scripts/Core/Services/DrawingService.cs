@@ -190,11 +190,12 @@ namespace ARDrawing.Core.Services
                 InitializeService();
             }
             
+            // Принудительно завершаем предыдущую линию если ещё рисуем
             if (_isDrawing)
             {
                 if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Attempted to start line while already drawing");
-                return;
+                    Debug.LogWarning("[DrawingService] Force ending previous line before starting new one");
+                EndLine();
             }
             
             // Проверка лимита линий
@@ -232,7 +233,7 @@ namespace ARDrawing.Core.Services
             
             if (_enableDebugLog)
             {
-                Debug.Log($"[DrawingService] Started line at {position}. Active lines: {_activeLines.Count}");
+                Debug.Log($"[DrawingService] Started NEW line at {position}. Active lines: {_activeLines.Count}");
             }
         }
         
@@ -279,13 +280,18 @@ namespace ARDrawing.Core.Services
                 return;
             }
             
+            if (_enableDebugLog)
+                Debug.Log($"[DrawingService] Ending line with {_currentLine.PointCount} points");
+            
             // Если линия слишком короткая, удаляем её
             if (_currentLine.PointCount < 2)
             {
+                if (_enableDebugLog)
+                    Debug.Log("[DrawingService] Removing line with insufficient points");
                 RemoveCurrentLine();
             }
             
-            // Сброс текущих объектов
+            // ОБЯЗАТЕЛЬНО очищаем текущие ссылки
             _currentLine = null;
             _currentRenderer = null;
             
@@ -295,7 +301,7 @@ namespace ARDrawing.Core.Services
             
             if (_enableDebugLog)
             {
-                Debug.Log($"[DrawingService] Line ended. Active lines: {_activeLines.Count}");
+                Debug.Log($"[DrawingService] Line ended successfully. Active lines: {_activeLines.Count}");
             }
         }
         
@@ -324,6 +330,47 @@ namespace ARDrawing.Core.Services
             {
                 Debug.Log("[DrawingService] All lines cleared");
             }
+        }
+        
+        public bool UndoLastLine()
+        {
+            // Нельзя отменять во время рисования
+            if (_isDrawing)
+            {
+                if (_enableDebugLog)
+                    Debug.LogWarning("[DrawingService] Cannot undo while drawing. End current line first.");
+                return false;
+            }
+            
+            // Проверяем что есть линии для отмены
+            if (_activeLines.Count == 0)
+            {
+                if (_enableDebugLog)
+                    Debug.Log("[DrawingService] No lines to undo");
+                return false;
+            }
+            
+            // Удаляем последнюю линию
+            int lastIndex = _activeLines.Count - 1;
+            var removedLine = _activeLines[lastIndex];
+            var removedRenderer = _activeRenderers[lastIndex];
+            
+            // Удаляем из списков
+            _activeLines.RemoveAt(lastIndex);
+            _activeRenderers.RemoveAt(lastIndex);
+            
+            // Возвращаем рендер в пул
+            _lineRendererPool.Return(removedRenderer);
+            
+            // Обновляем состояние
+            _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
+            
+            if (_enableDebugLog)
+            {
+                Debug.Log($"[DrawingService] Undone line with {removedLine.PointCount} points. Remaining lines: {_activeLines.Count}");
+            }
+            
+            return true;
         }
         
         public void SetDrawingSettings(DrawingSettings settings)

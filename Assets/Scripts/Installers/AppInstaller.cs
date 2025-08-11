@@ -5,6 +5,7 @@ using ARDrawing.Core.Models;
 using ARDrawing.Core.Config;
 using ARDrawing.Presentation.Presenters;
 using ARDrawing.Presentation.Views;
+using ARDrawing.UI.Presenters;
 using ARDrawing.Testing;
 using UnityEngine;
 
@@ -121,16 +122,25 @@ namespace ARDrawing.Installers
                 .AsSingle()
                 .NonLazy();
             
-            // Сервис взаимодействия с UI
-            // UI interaction service
+            // UI System (Phase 4) - найти существующий UIPresenter в сцене
             if (enableDebugLogging)
-                Debug.Log("[AppInstaller] Installing UIInteractionService...");
+                Debug.Log("[AppInstaller] Binding existing UIPresenter from scene...");
                 
             Container
-                .Bind<IUIInteractionService>()
-                .To<UIInteractionService>()
+                .Bind<UIPresenter>()
+                .FromComponentInHierarchy()
                 .AsSingle()
                 .NonLazy();
+                
+            // UI Tester
+            if (enableDebugLogging)
+                Debug.Log("[AppInstaller] Installing UITester...");
+                
+           /* Container
+                .Bind<UITester>()
+                .FromNewComponentOnNewGameObject()
+                .AsSingle()
+                .NonLazy();*/
             
             // Сервис сохранения/загрузки через JSON
             // Save/Load service through JSON

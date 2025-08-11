@@ -50,6 +50,13 @@ namespace ARDrawing.Core.Interfaces
         void ClearAllLines();
         
         /// <summary>
+        /// Отменяет последнюю нарисованную линию.
+        /// Undoes the last drawn line.
+        /// </summary>
+        /// <returns>Отменена ли линия / Whether a line was undone</returns>
+        bool UndoLastLine();
+        
+        /// <summary>
         /// Устанавливает настройки рисования (цвет, толщина).
         /// Sets drawing settings (color, thickness).
         /// </summary>

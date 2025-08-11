@@ -421,6 +421,16 @@ namespace ARDrawing.Core.Services
         }
         
         /// <summary>
+        /// Получить текущую позицию указательного пальца.
+        /// Get current index finger position.
+        /// </summary>
+        /// <returns>Текущая позиция / Current position</returns>
+        public Vector3 GetCurrentIndexFingerPosition()
+        {
+            return _lastIndexPosition;
+        }
+        
+        /// <summary>
         /// Обновление настроек определения касания во время выполнения.
         /// Update touch detection settings at runtime.
         /// </summary>
