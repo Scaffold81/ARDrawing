@@ -622,6 +622,26 @@ namespace ARDrawing.Core.Services
             return !_isDrawing && _activeLines.Count < _currentSettings.MaxLinesCount;
         }
         
+        /// <summary>
+        /// Получает все текущие линии рисования.
+        /// Gets all current drawing lines.
+        /// </summary>
+        /// <returns>Список всех линий / List of all lines</returns>
+        public List<DrawingLine> GetAllLines()
+        {
+            return new List<DrawingLine>(_activeLines);
+        }
+        
+        /// <summary>
+        /// Получает количество текущих линий.
+        /// Gets count of current lines.
+        /// </summary>
+        /// <returns>Количество линий / Line count</returns>
+        public int GetLineCount()
+        {
+            return _activeLines.Count;
+        }
+        
         #endregion
     }
 }

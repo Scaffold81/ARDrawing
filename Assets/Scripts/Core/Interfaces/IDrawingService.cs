@@ -62,5 +62,19 @@ namespace ARDrawing.Core.Interfaces
         /// </summary>
         /// <param name="settings">Настройки рисования / Drawing settings</param>
         void SetDrawingSettings(DrawingSettings settings);
+        
+        /// <summary>
+        /// Получает все текущие линии рисования.
+        /// Gets all current drawing lines.
+        /// </summary>
+        /// <returns>Список всех линий / List of all lines</returns>
+        List<DrawingLine> GetAllLines();
+        
+        /// <summary>
+        /// Получает количество текущих линий.
+        /// Gets count of current lines.
+        /// </summary>
+        /// <returns>Количество линий / Line count</returns>
+        int GetLineCount();
     }
 }

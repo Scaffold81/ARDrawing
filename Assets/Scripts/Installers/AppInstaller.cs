@@ -131,16 +131,6 @@ namespace ARDrawing.Installers
                 .FromComponentInHierarchy()
                 .AsSingle()
                 .NonLazy();
-                
-            // UI Tester
-            if (enableDebugLogging)
-                Debug.Log("[AppInstaller] Installing UITester...");
-                
-           /* Container
-                .Bind<UITester>()
-                .FromNewComponentOnNewGameObject()
-                .AsSingle()
-                .NonLazy();*/
             
             // Сервис сохранения/загрузки через JSON
             // Save/Load service through JSON

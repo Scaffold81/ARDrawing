@@ -3,7 +3,11 @@ using UnityEngine.UI;
 using R3;
 using System;
 using ARDrawing.Core.Models;
+using ARDrawing.Core.Interfaces;
 using ARDrawing.UI.Components;
+using Cysharp.Threading.Tasks;
+using Zenject;
+using System.Collections.Generic;
 
 namespace ARDrawing.UI.Panels
 {
@@ -19,6 +23,8 @@ namespace ARDrawing.UI.Panels
         [SerializeField] private Button colorButton;
         [SerializeField] private Button clearButton;
         [SerializeField] private Button undoButton;
+        [SerializeField] private Button saveButton;
+        [SerializeField] private Button loadButton;
         
         [Header("Quick Color Palette")]
         [SerializeField] private Transform quickColorContainer;
@@ -33,6 +39,8 @@ namespace ARDrawing.UI.Panels
         private readonly ReactiveProperty<Color> currentColor = new ReactiveProperty<Color>(Color.white);
         private readonly ReactiveProperty<bool> canUndo = new ReactiveProperty<bool>(false);
         private readonly ReactiveProperty<bool> canClear = new ReactiveProperty<bool>(false);
+        private readonly ReactiveProperty<bool> canSave = new ReactiveProperty<bool>(false);
+        private readonly ReactiveProperty<bool> hasAvailableSaves = new ReactiveProperty<bool>(false);
         
         // Public Observables
         public Observable<Color> CurrentColor => currentColor.AsObservable();
@@ -40,11 +48,17 @@ namespace ARDrawing.UI.Panels
         // Quick color buttons
         private Button[] quickColorButtons;
         
+        // Dependencies
+        [Inject] private ISaveLoadService saveLoadService;
+        [Inject] private IDrawingService drawingService;
+        
         // Events
         public event Action<Color> OnColorSelected;
         public event Action OnClearRequested;
         public event Action OnUndoRequested;
         public event Action OnColorPickerRequested;
+        public event Action OnSaveRequested;
+        public event Action OnLoadRequested;
         
         #region Unity Lifecycle
         
@@ -57,8 +71,126 @@ namespace ARDrawing.UI.Panels
         
         #endregion
         
-        #region Initialization
+        #region Save/Load Operations
         
+        private async UniTask SaveCurrentDrawing()
+        {
+            try
+            {
+                // Получаем текущие линии из DrawingService
+                var currentLines = await GetCurrentDrawingLines();
+                
+                if (currentLines.Count == 0)
+                {
+                    Debug.Log("[MainPanel] No lines to save");
+                    return;
+                }
+                
+                // Генерируем имя файла с датой и временем
+                string fileName = "drawing_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                
+                // Сохраняем
+                var result = await saveLoadService.SaveDrawingAsync(currentLines, fileName);
+                
+                if (result.success)
+                {
+                    Debug.Log($"[MainPanel] Drawing saved successfully: {fileName}");
+                    OnSaveRequested?.Invoke();
+                    
+                    // Обновляем состояние кнопки Load
+                    await CheckAvailableSaves();
+                }
+                else
+                {
+                    Debug.LogError($"[MainPanel] Save failed: {result.errorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[MainPanel] Save error: {ex.Message}");
+            }
+        }
+        
+        private async UniTask LoadLatestDrawing()
+        {
+            try
+            {
+                // Получаем список доступных сохранений
+                var availableSaves = await saveLoadService.GetAvailableSavesAsync();
+                
+                if (availableSaves.Count == 0)
+                {
+                    Debug.Log("[MainPanel] No saves available to load");
+                    return;
+                }
+                
+                // Загружаем последнее сохранение
+                string latestSave = availableSaves[0]; // Список уже отсортирован по дате
+                var result = await saveLoadService.LoadDrawingAsync(latestSave);
+                
+                if (result.success)
+                {
+                    Debug.Log($"[MainPanel] Drawing loaded successfully: {latestSave}");
+                    
+                    // Очищаем текущий рисунок и загружаем новый
+                    drawingService?.ClearAllLines();
+                    
+                    // Загружаем линии в DrawingService
+                    foreach (var line in result.data)
+                    {
+                        if (line.Points.Count > 0)
+                        {
+                            drawingService?.StartLine(line.Points[0]);
+                            
+                            for (int i = 1; i < line.Points.Count; i++)
+                            {
+                                drawingService?.AddPointToLine(line.Points[i]);
+                            }
+                            
+                            drawingService?.EndLine();
+                        }
+                    }
+                    
+                    OnLoadRequested?.Invoke();
+                    
+                    // Обновляем состояния кнопок
+                    UpdateButtonStatesForDrawing();
+                }
+                else
+                {
+                    Debug.LogError($"[MainPanel] Load failed: {result.errorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[MainPanel] Load error: {ex.Message}");
+            }
+        }
+        
+        private async UniTask<List<DrawingLine>> GetCurrentDrawingLines()
+        {
+            await UniTask.Yield();
+            return drawingService?.GetAllLines() ?? new List<DrawingLine>();
+        }
+
+        private async UniTask CheckAvailableSaves()
+        {
+            try
+            {
+                var availableSaves = await saveLoadService.GetAvailableSavesAsync();
+                hasAvailableSaves.Value = availableSaves.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[MainPanel] Failed to check available saves: {ex.Message}");
+                hasAvailableSaves.Value = false;
+            }
+        }
+
+        #endregion
+
+        #region Initialization
+
         protected override void InitializePanel()
         {
             base.InitializePanel();
@@ -103,6 +235,26 @@ namespace ARDrawing.UI.Panels
                 });
                 undoButton.interactable = false; // Initially disabled
             }
+            
+            // Save Button
+            if (saveButton != null)
+            {
+                saveButton.onClick.AddListener(() => {
+                    Debug.Log("[MainPanel] Save button clicked");
+                    SaveCurrentDrawing().Forget();
+                });
+                saveButton.interactable = false; // Initially disabled
+            }
+            
+            // Load Button
+            if (loadButton != null)
+            {
+                loadButton.onClick.AddListener(() => {
+                    Debug.Log("[MainPanel] Load button clicked");
+                    LoadLatestDrawing().Forget();
+                });
+                loadButton.interactable = false; // Initially disabled
+            }
         }
         
         private void SetupQuickColors()
@@ -145,6 +297,11 @@ namespace ARDrawing.UI.Panels
             currentColor.Subscribe(color => { /* Visual feedback if needed */ });
             canUndo.Subscribe(UpdateUndoButton);
             canClear.Subscribe(UpdateClearButton);
+            canSave.Subscribe(UpdateSaveButton);
+            hasAvailableSaves.Subscribe(UpdateLoadButton);
+            
+            // Check for available saves on start
+            CheckAvailableSaves().Forget();
         }
         
         #endregion
@@ -178,6 +335,22 @@ namespace ARDrawing.UI.Panels
             }
         }
         
+        private void UpdateSaveButton(bool canSaveValue)
+        {
+            if (saveButton != null)
+            {
+                saveButton.interactable = canSaveValue;
+            }
+        }
+        
+        private void UpdateLoadButton(bool hasAvailableSavesValue)
+        {
+            if (loadButton != null)
+            {
+                loadButton.interactable = hasAvailableSavesValue;
+            }
+        }
+        
         #endregion
         
         #region Public API
@@ -199,6 +372,17 @@ namespace ARDrawing.UI.Panels
         {
             canUndo.Value = count > 0;
             canClear.Value = count > 0;
+            canSave.Value = count > 0;
+        }
+        
+        /// <summary>
+        /// Обновить состояния кнопок после изменений в рисовании.
+        /// Update button states after drawing changes.
+        /// </summary>
+        public void UpdateButtonStatesForDrawing()
+        {
+            int lineCount = drawingService?.GetLineCount() ?? 0;
+            SetLineCount(lineCount);
         }
         
         /// <summary>
@@ -221,6 +405,8 @@ namespace ARDrawing.UI.Panels
             currentColor?.Dispose();
             canUndo?.Dispose();
             canClear?.Dispose();
+            canSave?.Dispose();
+            hasAvailableSaves?.Dispose();
         }
         
         #endregion
