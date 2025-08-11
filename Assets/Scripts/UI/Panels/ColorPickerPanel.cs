@@ -31,7 +31,6 @@ namespace ARDrawing.UI.Panels
         
         // Events
         public event Action<Color> OnColorSelected;
-        public event Action OnColorPickerClosed;
         
         #region Unity Lifecycle
         

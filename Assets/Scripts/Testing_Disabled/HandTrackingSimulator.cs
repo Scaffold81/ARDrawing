@@ -59,7 +59,7 @@ namespace ARDrawing.Testing
         {
             if (!enableSimulation) return;
             
-            _mainCamera = Camera.main ?? FindObjectOfType<Camera>();
+            _mainCamera = Camera.main ?? FindFirstObjectByType<Camera>();
             _currentFingerPosition = new Vector3(0, 1.5f, 1f);
             _thumbPosition = _currentFingerPosition + Vector3.right * 0.05f; // Большой палец рядом
             

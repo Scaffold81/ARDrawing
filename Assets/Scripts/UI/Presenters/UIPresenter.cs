@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using R3;
+using R3.Triggers;
 using System;
 using System.Collections.Generic;
 using ARDrawing.Core.Interfaces;
@@ -67,9 +68,6 @@ namespace ARDrawing.UI.Presenters
             // Initialize reactive properties
             currentUIMode = new ReactiveProperty<UIMode>(UIMode.Drawing);
             selectedColor = new ReactiveProperty<Color>(Color.white);
-            
-            if (showDebugInfo)
-                Debug.Log("[UIPresenter] UI system initialized");
         }
         
         private void SubscribeToPanelEvents()
@@ -89,7 +87,6 @@ namespace ARDrawing.UI.Presenters
             if (colorPickerComponent != null)
             {
                 colorPickerComponent.OnColorSelected += (color) => OnColorSelected(color);
-                colorPickerComponent.OnColorPickerClosed += () => OnColorPickerClosed();
             }
             
             // Subscribe to DrawingService to update button states
@@ -97,7 +94,7 @@ namespace ARDrawing.UI.Presenters
             {
                 drawingService.ActiveLines.Subscribe(lines => {
                     UpdateButtonStates(lines.Count);
-                });
+                }).AddTo(this);
             }
         }
         
@@ -107,14 +104,9 @@ namespace ARDrawing.UI.Presenters
         
         private void OnClearButtonPressed()
         {
-            if (showDebugInfo)
-                Debug.Log("[UIPresenter] Clear button pressed!");
-                
             if (drawingService != null)
             {
                 drawingService.ClearAllLines();
-                if (showDebugInfo)
-                    Debug.Log("[UIPresenter] ClearAllLines() called on DrawingService");
             }
             else
             {
@@ -124,19 +116,9 @@ namespace ARDrawing.UI.Presenters
         
         private void OnUndoButtonPressed()
         {
-            if (showDebugInfo)
-                Debug.Log("[UIPresenter] Undo button pressed!");
-                
             if (drawingService != null)
             {
                 bool undoSuccessful = drawingService.UndoLastLine();
-                if (showDebugInfo)
-                {
-                    if (undoSuccessful)
-                        Debug.Log("[UIPresenter] Successfully undone last line");
-                    else
-                        Debug.Log("[UIPresenter] Undo failed - no lines to undo or currently drawing");
-                }
             }
             else
             {
@@ -151,25 +133,12 @@ namespace ARDrawing.UI.Presenters
             // Apply to drawing service
             if (drawingService != null)
             {
-                var currentSettings = new DrawingSettings
-                {
-                    LineColor = color,
-                    LineWidth = 0.01f // Default width for Phase 4
-                };
+                var currentSettings = new DrawingSettings();
+                currentSettings.LineColor = color;
+                currentSettings.LineWidth = 0.01f; // Default width for Phase 4
                 drawingService.SetDrawingSettings(currentSettings);
             }
             ToggleColorPicker();
-            if (showDebugInfo)
-                Debug.Log($"[UIPresenter] Color selected: {color}");
-        }
-        
-        private void OnColorPickerClosed()
-        {
-            // Панель закрылась, вернуться в Drawing режим
-            currentUIMode.Value = UIMode.Drawing;
-            
-            if (showDebugInfo)
-                Debug.Log("[UIPresenter] Color picker closed, returned to Drawing mode");
         }
         
         private void UpdateButtonStates(int lineCount)
@@ -178,9 +147,6 @@ namespace ARDrawing.UI.Presenters
             if (mainPanelComponent != null)
             {
                 mainPanelComponent.SetLineCount(lineCount);
-                
-                if (showDebugInfo)
-                    Debug.Log($"[UIPresenter] Updated button states for {lineCount} lines");
             }
         }
         
@@ -206,9 +172,6 @@ namespace ARDrawing.UI.Presenters
             {
                 colorPickerPanel.SetActive(true);
                 currentUIMode.Value = UIMode.ColorPicker;
-                
-                if (showDebugInfo)
-                    Debug.Log("[UIPresenter] Color Picker opened");
             }
         }
         
@@ -218,9 +181,6 @@ namespace ARDrawing.UI.Presenters
             {
                 colorPickerPanel.SetActive(false);
                 currentUIMode.Value = UIMode.Drawing;
-                
-                if (showDebugInfo)
-                    Debug.Log("[UIPresenter] Color Picker closed");
             }
         }
         
@@ -244,14 +204,12 @@ namespace ARDrawing.UI.Presenters
             // Test Clear button with X key
             if (Input.GetKeyDown(KeyCode.X))
             {
-                Debug.Log("[UIPresenter] X key pressed - testing Clear function");
                 OnClearButtonPressed();
             }
             
             // Test Undo button with Z key
             if (Input.GetKeyDown(KeyCode.Z))
             {
-                Debug.Log("[UIPresenter] Z key pressed - testing Undo function");
                 OnUndoButtonPressed();
             }
         }
@@ -275,11 +233,10 @@ namespace ARDrawing.UI.Presenters
         /// </summary>
         public DrawingSettings GetCurrentDrawingSettings()
         {
-            return new DrawingSettings
-            {
-                LineColor = selectedColor.Value,
-                LineWidth = 0.01f
-            };
+            var settings = new DrawingSettings();
+            settings.LineColor = selectedColor.Value;
+            settings.LineWidth = 0.01f;
+            return settings;
         }
         
         /// <summary>

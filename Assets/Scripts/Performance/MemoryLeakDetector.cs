@@ -20,7 +20,6 @@ namespace ARDrawing.Performance
         [SerializeField] private bool autoDetectLeaks = true;
         
         [Header("Thresholds")]
-        [SerializeField] private long maxHeapSizeMB = 100;
         [SerializeField] private int maxGameObjectCount = 1000;
         [SerializeField] private int maxObservableCount = 50;
         [SerializeField] private float memoryGrowthThresholdMB = 10f;
@@ -32,7 +31,6 @@ namespace ARDrawing.Performance
         private StringBuilder _reportBuilder = new StringBuilder();
         
         // Leak Detection
-        private bool _potentialLeakDetected = false;
         private int _consecutiveLeakChecks = 0;
         private const int LEAK_CONFIRMATION_CHECKS = 3;
         
@@ -58,9 +56,6 @@ namespace ARDrawing.Performance
             
             _monitoringSubscription = Observable.Interval(TimeSpan.FromSeconds(checkIntervalSeconds))
                 .Subscribe(_ => PerformMemoryCheck());
-            
-            if (showDebugOutput)
-                Debug.Log("[MemoryLeakDetector] Memory monitoring started");
         }
         
         private void CleanupMonitoring()
@@ -119,11 +114,11 @@ namespace ARDrawing.Performance
                 UnityHeapSizeMB = UnityEngine.Profiling.Profiler.GetMonoHeapSizeLong() / (1024f * 1024f),
                 UnityUsedHeapMB = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong() / (1024f * 1024f),
                 GraphicsMemoryMB = UnityEngine.Profiling.Profiler.GetAllocatedMemoryForGraphicsDriver() / (1024f * 1024f),
-                TotalGameObjects = FindObjectsOfType<GameObject>().Length,
-                TotalLineRenderers = FindObjectsOfType<LineRenderer>().Length,
-                TotalRigidbodies = FindObjectsOfType<Rigidbody>().Length,
-                TotalColliders = FindObjectsOfType<Collider>().Length,
-                TotalCanvases = FindObjectsOfType<Canvas>().Length,
+                TotalGameObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Length,
+                TotalLineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None).Length,
+                TotalRigidbodies = FindObjectsByType<Rigidbody>(FindObjectsSortMode.None).Length,
+                TotalColliders = FindObjectsByType<Collider>(FindObjectsSortMode.None).Length,
+                TotalCanvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None).Length,
                 ActiveObservableStreams = CountActiveObservables()
             };
         }
@@ -131,7 +126,7 @@ namespace ARDrawing.Performance
         private int CountActiveObservables()
         {
             // Approximate count based on R3 internal state
-            var subjects = FindObjectsOfType<MonoBehaviour>()
+            var subjects = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
                 .SelectMany(mb => mb.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance))
                 .Where(field => field.FieldType.Name.Contains("Subject") || field.FieldType.Name.Contains("Observable"))
                 .Count();
@@ -141,8 +136,7 @@ namespace ARDrawing.Performance
         
         private void LogMemoryStats(MemorySnapshot snapshot)
         {
-            Debug.Log($"[MemoryLeakDetector] Heap: {snapshot.HeapSizeMB:F1}MB, Objects: {snapshot.TotalGameObjects}, " +
-                     $"LineRenderers: {snapshot.TotalLineRenderers}, Observables: {snapshot.ActiveObservableStreams}");
+            // Memory stats logged
         }
         
         #endregion
@@ -199,7 +193,6 @@ namespace ARDrawing.Performance
         {
             if (_consecutiveLeakChecks >= LEAK_CONFIRMATION_CHECKS)
             {
-                _potentialLeakDetected = true;
                 Debug.LogError("[MemoryLeakDetector] MEMORY LEAK CONFIRMED!");
                 GenerateDetailedLeakReport();
                 _consecutiveLeakChecks = 0;
@@ -214,7 +207,7 @@ namespace ARDrawing.Performance
         {
             _objectTypeCounts.Clear();
             
-            var allObjects = FindObjectsOfType<GameObject>();
+            var allObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
             foreach (var obj in allObjects)
             {
                 var type = obj.GetType();

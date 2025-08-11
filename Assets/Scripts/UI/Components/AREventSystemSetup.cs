@@ -17,7 +17,7 @@ namespace ARDrawing.UI.Components
         private void SetupEventSystem()
         {
             // Найти или создать EventSystem
-            var eventSystem = FindObjectOfType<EventSystem>();
+            var eventSystem = FindFirstObjectByType<EventSystem>();
             if (eventSystem == null)
             {
                 var go = new GameObject("EventSystem");

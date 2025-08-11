@@ -158,9 +158,6 @@ namespace ARDrawing.Presentation.Presenters
         
         private void SetupTouchStateStream()
         {
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Setting up touch state stream...");
-            
             touchStateSubscription = handTrackingService.IsIndexFingerTouching
                 .DistinctUntilChanged() // Только при изменении состояния
                 .Do(isTouching => 
@@ -178,23 +175,15 @@ namespace ARDrawing.Presentation.Presenters
                 // Проверка что мы не кликаем по UI элементам (для Editor)
                 if (IsPointerOverUI())
                 {
-                    if (enableDebugLog)
-                        Debug.Log("[DrawingPresenter] Pointer over UI - ignoring touch");
-                    
                     // ОБЯЗАТЕЛЬНО завершить текущую линию при клике по UI
                     if (isCurrentlyDrawing)
                     {
                         EndDrawing();
-                        if (enableDebugLog)
-                            Debug.Log("[DrawingPresenter] Ended drawing due to UI interaction");
                     }
                     return;
                 }
                 
                 var newState = isTouching ? TouchState.Active : TouchState.None;
-                
-                if (enableDebugLog)
-                    Debug.Log($"[DrawingPresenter] Touch state changed: {newState}");
                 
                 switch (newState)
                 {
@@ -221,9 +210,6 @@ namespace ARDrawing.Presentation.Presenters
         
         private void SetupFingerPositionStream()
         {
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Setting up finger position stream...");
-            
             var baseStream = handTrackingService.IndexFingerPosition
                 .Where(_ => currentTouchState.Value == TouchState.Active);
             
@@ -275,15 +261,10 @@ namespace ARDrawing.Presentation.Presenters
                 // Проверка UI перед добавлением точки - ОБЯЗАТЕЛЬНО!
                 if (IsPointerOverUI())
                 {
-                    if (enableDebugLog)
-                        Debug.Log("[DrawingPresenter] Position update ignored - pointer over UI");
-                    
                     // Принудительно завершить линию если навели на UI
                     if (isCurrentlyDrawing)
                     {
                         EndDrawing();
-                        if (enableDebugLog)
-                            Debug.Log("[DrawingPresenter] Force ended drawing - moved over UI");
                     }
                     return;
                 }
@@ -318,9 +299,6 @@ namespace ARDrawing.Presentation.Presenters
         
         private void SetupConfidenceStream()
         {
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Setting up confidence stream...");
-            
             confidenceSubscription = handTrackingService.HandTrackingConfidence
                 .DistinctUntilChanged()
                 .Do(confidence => drawingConfidence.Value = confidence)
@@ -330,16 +308,9 @@ namespace ARDrawing.Presentation.Presenters
         
         private void OnLowConfidence(float confidence)
         {
-            if (isCurrentlyDrawing && enableDebugLog)
-            {
-                Debug.LogWarning($"[DrawingPresenter] Low tracking confidence: {confidence:F2}");
-            }
-            
             // При очень низкой уверенности можно остановить рисование
             if (confidence < 0.3f && isCurrentlyDrawing)
             {
-                if (enableDebugLog)
-                    Debug.LogWarning("[DrawingPresenter] Stopping drawing due to very low confidence");
                 EndDrawing();
             }
         }
@@ -350,9 +321,6 @@ namespace ARDrawing.Presentation.Presenters
         
         private void SetupDrawingLogic()
         {
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Setting up drawing logic stream...");
-            
             // Комбинированный стрим для основной логики рисования
             drawingLogicSubscription = currentTouchState.AsObservable()
                 .CombineLatest(currentDrawingPosition.AsObservable(), drawingConfidence.AsObservable(), 
@@ -367,11 +335,6 @@ namespace ARDrawing.Presentation.Presenters
             // Дополнительная логика обработки рисования может быть добавлена здесь
             // Например, изменение толщины линии в зависимости от уверенности
             // Или специальные эффекты при определенных условиях
-            
-            if (enableDebugLog && confidence < 0.8f)
-            {
-                Debug.Log($"[DrawingPresenter] Drawing with reduced confidence: {confidence:F2}");
-            }
         }
         
         #endregion
@@ -422,11 +385,6 @@ namespace ARDrawing.Presentation.Presenters
             
             drawingService.AddPointToLine(position);
             totalPointsDrawn++;
-            
-            if (enableDebugLog && totalPointsDrawn % 20 == 0)
-            {
-                Debug.Log($"[DrawingPresenter] Added {totalPointsDrawn} points to current line");
-            }
         }
         
         private void EndDrawing()
@@ -446,9 +404,6 @@ namespace ARDrawing.Presentation.Presenters
             
             // Очищаем последние позиции чтобы не использовать старые данные
             lastDrawingPosition = Vector3.zero;
-            
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Drawing ended and position cleared");
         }
         
         #endregion
@@ -495,9 +450,6 @@ namespace ARDrawing.Presentation.Presenters
         private void DisposeSubscriptions()
         {
             if (_isDisposed) return;
-            
-            if (enableDebugLog)
-                Debug.Log("[DrawingPresenter] Disposing reactive subscriptions...");
             
             // Dispose subscriptions safely
             DisposeSubscription(ref touchStateSubscription, "TouchState");
@@ -585,8 +537,6 @@ namespace ARDrawing.Presentation.Presenters
         {
             if (isCurrentlyDrawing)
             {
-                if (enableDebugLog)
-                    Debug.Log("[DrawingPresenter] Force stopping drawing");
                 EndDrawing();
             }
         }

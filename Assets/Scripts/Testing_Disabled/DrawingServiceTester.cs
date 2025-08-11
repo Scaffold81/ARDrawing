@@ -37,7 +37,6 @@ namespace ARDrawing.Testing
         
         [Header("Debug Info")]
         [SerializeField] private bool _showDebugInfo = true;
-        [SerializeField] private bool _logPoolStats = false;
         
         // Тестовые данные
         private IDisposable _activeLinesSubscription;

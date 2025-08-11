@@ -42,8 +42,6 @@ namespace ARDrawing.Core.Services
             _settings = settings;
             _distanceHistory = new CircularBuffer<float>(5);
             _confidenceHistory = new CircularBuffer<float>(5);
-            
-            Debug.Log("TouchStateManager: Initialized with improved touch detection");
         }
         
         /// <summary>
@@ -169,19 +167,17 @@ namespace ARDrawing.Core.Services
                 {
                     case TouchState.Started:
                         _touchStartTime = Time.time;
-                        Debug.Log($"TouchStateManager: Touch started at {position}");
                         break;
                         
                     case TouchState.Ended:
                         _lastTouchEndTime = Time.time;
                         float touchDuration = _lastTouchEndTime - _touchStartTime;
-                        Debug.Log($"TouchStateManager: Touch ended, duration: {touchDuration:F3}s");
                         break;
                         
                     case TouchState.None:
                         if (previousState == TouchState.Ended)
                         {
-                            Debug.Log("TouchStateManager: Touch sequence completed");
+                            // Touch sequence completed
                         }
                         break;
                 }
@@ -262,7 +258,6 @@ namespace ARDrawing.Core.Services
         public void UpdateSettings(TouchDetectionSettings newSettings)
         {
             _settings = newSettings;
-            Debug.Log($"TouchStateManager: Settings updated - Threshold: {_settings.pinchThreshold}, Hysteresis: {_settings.hysteresis}");
         }
         
         /// <summary>
@@ -277,8 +272,6 @@ namespace ARDrawing.Core.Services
             _smoothedDistance = 0f;
             _distanceHistory.Clear();
             _confidenceHistory.Clear();
-            
-            Debug.Log("TouchStateManager: State reset");
         }
         
         /// <summary>
@@ -304,8 +297,6 @@ namespace ARDrawing.Core.Services
             {
                 Debug.LogError($"TouchStateManager: Error disposing _touchStateChanged: {ex.Message}");
             }
-            
-            Debug.Log("TouchStateManager: Disposed safely");
         }
     }
     

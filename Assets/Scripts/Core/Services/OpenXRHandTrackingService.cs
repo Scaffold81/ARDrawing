@@ -98,7 +98,7 @@ namespace ARDrawing.Core.Services
             // Automatically find OVRHand components if not assigned
             if (rightOVRHand == null)
             {
-                var ovrHands = FindObjectsOfType<OVRHand>();
+                var ovrHands = FindObjectsByType<OVRHand>(FindObjectsSortMode.None);
                 foreach (var hand in ovrHands)
                 {
                     // Ищем правую руку по имени объекта
@@ -122,7 +122,7 @@ namespace ARDrawing.Core.Services
             // Alternative search for OVRSkeleton in scene
             if (rightHandSkeleton == null)
             {
-                var skeletons = FindObjectsOfType<OVRSkeleton>();
+                var skeletons = FindObjectsByType<OVRSkeleton>(FindObjectsSortMode.None);
                 foreach (var skeleton in skeletons)
                 {
                     if (skeleton.GetSkeletonType() == OVRSkeleton.SkeletonType.HandRight)
@@ -137,14 +137,11 @@ namespace ARDrawing.Core.Services
             
             if (_isInitialized)
             {
-                if (debugOutput)
-                {
-                    Debug.Log("OpenXRHandTrackingService: OVR Hand components found and initialized / OVR Hand компоненты найдены и инициализированы");
-                }
+                // Component found and initialized
             }
             else
             {
-                Debug.LogWarning("OpenXRHandTrackingService: No OVR Hand components found. Make sure hands are in the scene / OVR Hand компоненты не найдены. Убедитесь что руки есть в сцене");
+                Debug.LogWarning("OpenXRHandTrackingService: No OVR Hand components found. Make sure hands are in the scene");
             }
         }
         
@@ -162,11 +159,6 @@ namespace ARDrawing.Core.Services
                 
             _touchStateSubscription = _touchStateManager.TouchStateChanged
                 .Subscribe(OnTouchStateChanged);
-            
-            if (debugOutput)
-            {
-                Debug.Log("OpenXRHandTrackingService: TouchStateManager initialized with improved detection");
-            }
         }
         
         /// <summary>
@@ -187,13 +179,8 @@ namespace ARDrawing.Core.Services
             
             if (_lastTouchState != isTouching)
             {
-                _lastTouchState = isTouching;
-                _isIndexFingerTouching.OnNext(isTouching);
-                
-                if (debugOutput)
-                {
-                    Debug.Log($"OpenXRHandTrackingService: Touch state changed to {touchEvent.state} / Состояние касания изменено на {touchEvent.state}");
-                }
+            _lastTouchState = isTouching;
+            _isIndexFingerTouching.OnNext(isTouching);
             }
             
             // Создаем данные взаимодействия с дополнительной информацией
@@ -220,10 +207,7 @@ namespace ARDrawing.Core.Services
         /// <param name="newState">Новое состояние / New state</param>
         private void OnTouchStateChanged(TouchState newState)
         {
-            if (debugOutput)
-            {
-                Debug.Log($"OpenXRHandTrackingService: Touch state transition to {newState} / Переход состояния касания в {newState}");
-            }
+            // Touch state transition handled
         }
         
         /// <summary>
@@ -460,11 +444,6 @@ namespace ARDrawing.Core.Services
         {
             touchSettings = newSettings;
             _touchStateManager?.UpdateSettings(newSettings);
-            
-            if (debugOutput)
-            {
-                Debug.Log($"OpenXRHandTrackingService: Touch settings updated - Threshold: {newSettings.pinchThreshold}");
-            }
         }
         
         /// <summary>
@@ -538,7 +517,7 @@ namespace ARDrawing.Core.Services
             
             if (debugOutput)
             {
-                Debug.Log("OpenXRHandTrackingService: Disposed safely");
+                // Disposed message removed
             }
         }
         

@@ -159,8 +159,6 @@ namespace ARDrawing.UI.Components
             isPressed = new ReactiveProperty<bool>(false);
             
             UpdateVisualState();
-            
-            Debug.Log($"[InteractableButton] {buttonId} initialized - Type: {buttonType}");
         }
         
         #endregion

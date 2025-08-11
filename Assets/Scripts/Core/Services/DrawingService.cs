@@ -69,13 +69,8 @@ namespace ARDrawing.Core.Services
             // Проверка на повторную инициализацию
             if (_lineRendererPool != null)
             {
-                if (_enableDebugLog)
-                    Debug.Log("[DrawingService] Already initialized, skipping...");
                 return;
             }
-            
-            if (_enableDebugLog)
-                Debug.Log("[DrawingService] Starting initialization...");
             
             // Настройки по умолчанию
             _currentSettings = _drawingSettings ?? DrawingSettings.Default;
@@ -86,9 +81,6 @@ namespace ARDrawing.Core.Services
                 var linesContainer = new GameObject("DrawingLines");
                 linesContainer.transform.SetParent(transform);
                 _linesParent = linesContainer.transform;
-                
-                if (_enableDebugLog)
-                    Debug.Log("[DrawingService] Created lines container");
             }
             
             // Инициализация пула
@@ -98,11 +90,6 @@ namespace ARDrawing.Core.Services
             _isDrawing = false;
             _isDrawingSubject.OnNext(_isDrawing);
             _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Initialized with pool size: {_currentSettings.LinePoolInitialSize}");
-            }
         }
         
         private void InitializeLineRendererPool()
@@ -118,24 +105,15 @@ namespace ARDrawing.Core.Services
         
         private PooledLineRenderer CreateLineRenderer()
         {
-            if (_enableDebugLog)
-                Debug.Log("[DrawingService] Creating new LineRenderer...");
-                
             var lineObject = new GameObject("PooledLine");
             lineObject.transform.SetParent(_linesParent);
             
             var lineRenderer = lineObject.AddComponent<LineRenderer>();
             
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] LineRenderer created, configuring with material: {(_lineMaterial != null ? _lineMaterial.name : "NULL")}");
-                
             ConfigureLineRenderer(lineRenderer);
             
             var pooledRenderer = new PooledLineRenderer(lineRenderer);
             pooledRenderer.Deactivate(); // Изначально неактивен
-            
-            if (_enableDebugLog)
-                Debug.Log("[DrawingService] PooledLineRenderer created and deactivated");
             
             return pooledRenderer;
         }
@@ -145,15 +123,9 @@ namespace ARDrawing.Core.Services
             // Создаем материал по умолчанию если не назначен
             if (_lineMaterial == null)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Line material is null, creating default material...");
-                    
                 _lineMaterial = new Material(Shader.Find("Sprites/Default"));
                 _lineMaterial.name = "DefaultLineMaterial";
                 _lineMaterial.color = Color.white;
-                
-                if (_enableDebugLog)
-                    Debug.Log("[DrawingService] Default material created");
             }
             
             lineRenderer.material = _lineMaterial;
@@ -168,9 +140,6 @@ namespace ARDrawing.Core.Services
             lineRenderer.receiveShadows = false;
             lineRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lineRenderer.allowOcclusionWhenDynamic = false;
-            
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] LineRenderer configured - Width: {_currentSettings.LineWidth}, Color: {_currentSettings.LineColor}");
         }
         
         #endregion
@@ -179,22 +148,15 @@ namespace ARDrawing.Core.Services
         
         public void StartLine(Vector3 position)
         {
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] StartLine called at {position}, pool is {(_lineRendererPool == null ? "NULL" : "initialized")}");
-            
             // Принудительная инициализация если не инициализирован
             if (_lineRendererPool == null)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Pool not initialized, calling InitializeService()...");
                 InitializeService();
             }
             
             // Принудительно завершаем предыдущую линию если ещё рисуем
             if (_isDrawing)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Force ending previous line before starting new one");
                 EndLine();
             }
             
@@ -208,14 +170,8 @@ namespace ARDrawing.Core.Services
             _currentLine = new DrawingLine(_currentSettings.LineColor, _currentSettings.LineWidth);
             _currentLine.AddPoint(position);
             
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] Created new DrawingLine, getting renderer from pool...");
-            
             // Получение рендера из пула
             _currentRenderer = _lineRendererPool.Take();
-            
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] Got renderer from pool: {(_currentRenderer != null ? "SUCCESS" : "NULL")}");
             
             _currentRenderer.Activate(_currentLine);
             
@@ -230,19 +186,12 @@ namespace ARDrawing.Core.Services
             
             // Обновление визуализации
             _currentRenderer.UpdateLine();
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Started NEW line at {position}. Active lines: {_activeLines.Count}");
-            }
         }
         
         public void AddPointToLine(Vector3 position)
         {
             if (!_isDrawing || _currentLine == null)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Attempted to add point while not drawing");
                 return;
             }
             
@@ -255,8 +204,6 @@ namespace ARDrawing.Core.Services
             // Проверка лимита точек
             if (_currentLine.PointCount >= _currentSettings.MaxPointsPerLine)
             {
-                if (_enableDebugLog)
-                    Debug.Log($"[DrawingService] Line reached max points limit: {_currentSettings.MaxPointsPerLine}");
                 EndLine();
                 return;
             }
@@ -264,30 +211,18 @@ namespace ARDrawing.Core.Services
             // Добавление точки
             _currentLine.AddPoint(position);
             _currentRenderer.UpdateLine();
-            
-            if (_enableDebugLog && _currentLine.PointCount % 50 == 0)
-            {
-                Debug.Log($"[DrawingService] Line points: {_currentLine.PointCount}");
-            }
         }
         
         public void EndLine()
         {
             if (!_isDrawing || _currentLine == null)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Attempted to end line while not drawing");
                 return;
             }
-            
-            if (_enableDebugLog)
-                Debug.Log($"[DrawingService] Ending line with {_currentLine.PointCount} points");
             
             // Если линия слишком короткая, удаляем её
             if (_currentLine.PointCount < 2)
             {
-                if (_enableDebugLog)
-                    Debug.Log("[DrawingService] Removing line with insufficient points");
                 RemoveCurrentLine();
             }
             
@@ -298,11 +233,6 @@ namespace ARDrawing.Core.Services
             // Обновление состояния
             _isDrawing = false;
             _isDrawingSubject.OnNext(_isDrawing);
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Line ended successfully. Active lines: {_activeLines.Count}");
-            }
         }
         
         public void ClearAllLines()
@@ -325,11 +255,6 @@ namespace ARDrawing.Core.Services
             
             // Обновляем состояние
             _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log("[DrawingService] All lines cleared");
-            }
         }
         
         public bool UndoLastLine()
@@ -337,16 +262,12 @@ namespace ARDrawing.Core.Services
             // Нельзя отменять во время рисования
             if (_isDrawing)
             {
-                if (_enableDebugLog)
-                    Debug.LogWarning("[DrawingService] Cannot undo while drawing. End current line first.");
                 return false;
             }
             
             // Проверяем что есть линии для отмены
             if (_activeLines.Count == 0)
             {
-                if (_enableDebugLog)
-                    Debug.Log("[DrawingService] No lines to undo");
                 return false;
             }
             
@@ -364,11 +285,6 @@ namespace ARDrawing.Core.Services
             
             // Обновляем состояние
             _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Undone line with {removedLine.PointCount} points. Remaining lines: {_activeLines.Count}");
-            }
             
             return true;
         }
@@ -390,11 +306,6 @@ namespace ARDrawing.Core.Services
                 // Пул не поддерживает изменение размера на лету,
                 // но мы можем предварительно создать объекты
                 _lineRendererPool.Prewarm(_currentSettings.LinePoolInitialSize);
-            }
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Settings updated. Color: {settings.LineColor}, Width: {settings.LineWidth}");
             }
         }
         
@@ -439,11 +350,6 @@ namespace ARDrawing.Core.Services
             
             // Возвращаем рендер в пул
             _lineRendererPool.Return(oldestRenderer);
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Removed oldest line with {oldestLine.PointCount} points");
-            }
         }
         
         private void RemoveCurrentLine()
@@ -587,11 +493,6 @@ namespace ARDrawing.Core.Services
             
             // Обновляем Observable
             _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Loaded {lines.Count} lines");
-            }
         }
         
         /// <summary>
@@ -610,11 +511,6 @@ namespace ARDrawing.Core.Services
             _activeRenderers.RemoveAt(index);
             
             _activeLinesSubject.OnNext(new List<DrawingLine>(_activeLines));
-            
-            if (_enableDebugLog)
-            {
-                Debug.Log($"[DrawingService] Removed line at index {index}");
-            }
         }
         
         /// <summary>

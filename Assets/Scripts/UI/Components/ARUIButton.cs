@@ -19,13 +19,10 @@ namespace ARDrawing.UI.Components
     {
         [Header("Button Configuration")]
         [SerializeField] private string buttonId = "ARButton";
-        [SerializeField] private ARButtonType buttonType = ARButtonType.Action;
-        [SerializeField] private bool useEnhancedEffects = true;
         
         [Header("Visual Effects")]
         [SerializeField] private bool enableScaleAnimation = true;
         [SerializeField] private bool enableColorAnimation = true;
-        [SerializeField] private bool enableGlowEffect = true;
         
         [Header("Animation Settings")]
         [SerializeField] private float hoverScale = 1.1f;

@@ -48,7 +48,7 @@ namespace ARDrawing.Presentation.Views
         {
             arCamera = Camera.main;
             if (arCamera == null)
-                arCamera = FindObjectOfType<Camera>();
+                arCamera = FindFirstObjectByType<Camera>();
         }
         
         private void Start()
@@ -75,9 +75,6 @@ namespace ARDrawing.Presentation.Views
         private void InitializeSystem()
         {
             CreateRendererPool();
-            
-            if (enableDebugLog)
-                Debug.Log("[ARDrawingView] Enhanced view system initialized");
         }
         
         private void CreateRendererPool()
@@ -88,9 +85,6 @@ namespace ARDrawing.Presentation.Views
                 renderer.gameObject.SetActive(false);
                 rendererPool.Enqueue(renderer);
             }
-            
-            if (enableDebugLog)
-                Debug.Log($"[ARDrawingView] Created renderer pool with {maxVisibleLines} instances");
         }
         
         private LineRenderer CreateLineRenderer()
@@ -129,9 +123,6 @@ namespace ARDrawing.Presentation.Views
             
             activeLinesSubscription = drawingService.ActiveLines
                 .Subscribe(OnActiveLinesChanged);
-            
-            if (enableDebugLog)
-                Debug.Log("[ARDrawingView] Subscribed to drawing events");
         }
         
         private void OnActiveLinesChanged(List<DrawingLine> activeLines)
@@ -140,11 +131,6 @@ namespace ARDrawing.Presentation.Views
             {
                 UpdateLineRenderers(activeLines);
                 visibleLinesCount = activeLines.Count;
-                
-                if (enableDebugLog)
-                {
-                    Debug.Log($"[ARDrawingView] Enhanced view - Active lines: {activeLines.Count}");
-                }
             }
             catch (Exception ex)
             {
@@ -192,8 +178,7 @@ namespace ARDrawing.Presentation.Views
             var renderer = GetRendererFromPool();
             if (renderer == null)
             {
-                if (enableDebugLog)
-                    Debug.LogWarning("[ARDrawingView] No available renderers in pool");
+                Debug.LogWarning("[ARDrawingView] No available renderers in pool");
                 return;
             }
             
@@ -339,9 +324,6 @@ namespace ARDrawing.Presentation.Views
         public void SetEnhancedEffects(bool enabled)
         {
             enableEnhancedEffects = enabled;
-            
-            if (enableDebugLog)
-                Debug.Log($"[ARDrawingView] Enhanced effects {(enabled ? "enabled" : "disabled")}");
         }
         
         /// <summary>

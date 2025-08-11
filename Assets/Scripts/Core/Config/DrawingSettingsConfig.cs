@@ -25,7 +25,6 @@ namespace ARDrawing.Core.Config
         
         [Header("Drawing Behavior")]
         [SerializeField, Range(0.1f, 2.0f)] private float _touchSensitivity = 1.0f;
-        [SerializeField] private bool _enableSmoothing = true;
         [SerializeField, Range(2, 10)] private int _smoothingIterations = 3;
         
         [Header("Available Colors")]
@@ -141,7 +140,6 @@ namespace ARDrawing.Core.Config
             _minDistanceBetweenPoints = 0.015f;
             _linePoolInitialSize = 15;
             _linePoolMaxSize = 60;
-            _enableSmoothing = false;
         }
         
         /// <summary>
@@ -155,7 +153,6 @@ namespace ARDrawing.Core.Config
             _minDistanceBetweenPoints = 0.01f;
             _linePoolInitialSize = 20;
             _linePoolMaxSize = 100;
-            _enableSmoothing = true;
             _smoothingIterations = 3;
         }
         
@@ -170,7 +167,6 @@ namespace ARDrawing.Core.Config
             _minDistanceBetweenPoints = 0.005f;
             _linePoolInitialSize = 30;
             _linePoolMaxSize = 150;
-            _enableSmoothing = true;
             _smoothingIterations = 5;
         }
         

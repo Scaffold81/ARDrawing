@@ -25,9 +25,6 @@ namespace ARDrawing.Performance
         {
             _lastCheckTime = Time.time;
             _lastHeapSize = GC.GetTotalMemory(false);
-            
-            if (showLogs)
-                Debug.Log("[MemoryLeakFixer] Memory monitoring started");
         }
         
         private void Update()
@@ -45,7 +42,7 @@ namespace ARDrawing.Performance
             {
                 long currentHeap = GC.GetTotalMemory(false);
                 long heapMB = currentHeap / (1024 * 1024);
-                int gameObjectCount = FindObjectsOfType<GameObject>().Length;
+                int gameObjectCount = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Length;
                 
                 bool needsFixing = false;
                 
@@ -80,11 +77,6 @@ namespace ARDrawing.Performance
                 }
                 
                 _lastHeapSize = currentHeap;
-                
-                if (showLogs)
-                {
-                    Debug.Log($"[MemoryLeakFixer] Health check - Heap: {heapMB}MB, Objects: {gameObjectCount}");
-                }
             }
             catch (Exception ex)
             {
@@ -94,9 +86,6 @@ namespace ARDrawing.Performance
         
         private void ApplyMemoryFixes()
         {
-            if (showLogs)
-                Debug.Log("[MemoryLeakFixer] Applying memory fixes...");
-            
             try
             {
                 // Force garbage collection
@@ -106,9 +95,6 @@ namespace ARDrawing.Performance
                 
                 // Clean up null references
                 Resources.UnloadUnusedAssets();
-                
-                if (showLogs)
-                    Debug.Log("[MemoryLeakFixer] Memory fixes applied");
             }
             catch (Exception ex)
             {
@@ -133,8 +119,8 @@ namespace ARDrawing.Performance
         public string GetMemoryReport()
         {
             long heap = GC.GetTotalMemory(false);
-            int objects = FindObjectsOfType<GameObject>().Length;
-            int lineRenderers = FindObjectsOfType<LineRenderer>().Length;
+            int objects = FindObjectsByType<GameObject>(FindObjectsSortMode.None).Length;
+            int lineRenderers = FindObjectsByType<LineRenderer>(FindObjectsSortMode.None).Length;
             
             return $"Memory Report:\\n" +
                    $"Heap: {heap / (1024 * 1024)}MB\\n" +
